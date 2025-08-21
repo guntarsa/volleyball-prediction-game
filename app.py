@@ -1,24 +1,43 @@
 import os
 import csv
-from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from datetime import datetime, timezone
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'winamount-could-be-huge-default-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///volleyball_predictions.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['WTF_CSRF_ENABLED'] = True
 
 db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
 # Database Models
-class User(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    email = db.Column(db.String(120), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=True)  # Set to True for simplicity
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     predictions = db.relationship('Prediction', backref='user', lazy=True, cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
     
     def get_total_score(self):
         return sum([p.points for p in self.predictions if p.points is not None])
@@ -34,11 +53,18 @@ class Game(db.Model):
     team1 = db.Column(db.String(100), nullable=False)
     team2 = db.Column(db.String(100), nullable=False)
     game_date = db.Column(db.DateTime, nullable=False)
+    prediction_deadline = db.Column(db.DateTime, nullable=False)
     round_name = db.Column(db.String(100), nullable=False)
     team1_score = db.Column(db.Integer, nullable=True)
     team2_score = db.Column(db.Integer, nullable=True)
     is_finished = db.Column(db.Boolean, default=False)
     predictions = db.relationship('Prediction', backref='game', lazy=True, cascade='all, delete-orphan')
+    
+    def is_prediction_open(self):
+        return datetime.now(timezone.utc) < self.prediction_deadline.replace(tzinfo=timezone.utc)
+    
+    def are_predictions_visible(self):
+        return datetime.now(timezone.utc) >= self.prediction_deadline.replace(tzinfo=timezone.utc)
     
     def get_winner(self):
         if self.team1_score is not None and self.team2_score is not None:
@@ -56,6 +82,19 @@ class Prediction(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('user_id', 'game_id'),)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash('Admin access required.', 'error')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def calculate_points(prediction, game):
     """Calculate points based on the scoring system"""
@@ -98,13 +137,93 @@ def calculate_points(prediction, game):
 def index():
     return render_template('index.html')
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validation
+        if not all([name, email, password, confirm_password]):
+            flash('All fields are required.', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('register.html')
+        
+        # Check if user already exists
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered.', 'error')
+            return render_template('register.html')
+        
+        if User.query.filter_by(name=name).first():
+            flash('Username already taken.', 'error')
+            return render_template('register.html')
+        
+        # Create new user
+        user = User(name=name, email=email)
+        user.set_password(password)
+        
+        # Make first user admin
+        if User.query.count() == 0:
+            user.is_admin = True
+            flash('Welcome! You are now the admin of this prediction game.', 'success')
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        login_user(user)
+        flash(f'Welcome {name}! You are now registered and logged in.', 'success')
+        return redirect(url_for('index'))
+    
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        remember = request.form.get('remember') == 'on'
+        
+        if not email or not password:
+            flash('Email and password are required.', 'error')
+            return render_template('login.html')
+        
+        user = User.query.filter_by(email=email).first()
+        if user and user.check_password(password):
+            login_user(user, remember=remember)
+            flash(f'Welcome back, {user.name}!', 'success')
+            
+            # Redirect to next page or index
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('Invalid email or password.', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('index'))
+
 @app.route('/predictions')
+@login_required
 def predictions():
     games = Game.query.filter_by(is_finished=False).order_by(Game.game_date).all()
-    users = User.query.all()
-    return render_template('predictions.html', games=games, users=users)
+    return render_template('predictions.html', games=games)
 
 @app.route('/leaderboard')
+@login_required
 def leaderboard():
     users = User.query.all()
     user_stats = []
@@ -121,31 +240,16 @@ def leaderboard():
     user_stats.sort(key=lambda x: x['total_score'], reverse=True)
     return render_template('leaderboard.html', users=user_stats)
 
-@app.route('/add_user', methods=['POST'])
-def add_user():
-    name = request.form.get('name', '').strip()
-    if not name:
-        flash('Please enter a valid name', 'error')
-        return redirect(url_for('leaderboard'))
-    
-    if User.query.filter_by(name=name).first():
-        flash('User already exists', 'error')
-        return redirect(url_for('leaderboard'))
-    
-    user = User(name=name)
-    db.session.add(user)
-    db.session.commit()
-    flash(f'Welcome {name}!', 'success')
-    return redirect(url_for('leaderboard'))
+# Removed add_user route - users now register themselves
 
 @app.route('/make_prediction', methods=['POST'])
+@login_required
 def make_prediction():
-    user_id = request.form.get('user_id')
     game_id = request.form.get('game_id')
     team1_score = request.form.get('team1_score')
     team2_score = request.form.get('team2_score')
     
-    if not all([user_id, game_id, team1_score, team2_score]):
+    if not all([game_id, team1_score, team2_score]):
         flash('Please fill in all fields', 'error')
         return redirect(url_for('predictions'))
     
@@ -158,17 +262,26 @@ def make_prediction():
         flash('Please enter valid scores', 'error')
         return redirect(url_for('predictions'))
     
+    game = Game.query.get(game_id)
+    if not game:
+        flash('Game not found', 'error')
+        return redirect(url_for('predictions'))
+    
+    # Check prediction deadline
+    if not game.is_prediction_open():
+        flash('Prediction deadline has passed for this game', 'error')
+        return redirect(url_for('predictions'))
+    
     # Check if prediction already exists
-    existing = Prediction.query.filter_by(user_id=user_id, game_id=game_id).first()
+    existing = Prediction.query.filter_by(user_id=current_user.id, game_id=game_id).first()
     if existing:
         existing.team1_score = team1_score
         existing.team2_score = team2_score
-        existing.predicted_winner = request.form.get('team1') if team1_score > team2_score else request.form.get('team2')
+        existing.predicted_winner = game.team1 if team1_score > team2_score else game.team2
     else:
-        game = Game.query.get(game_id)
         predicted_winner = game.team1 if team1_score > team2_score else game.team2
         prediction = Prediction(
-            user_id=user_id,
+            user_id=current_user.id,
             game_id=game_id,
             team1_score=team1_score,
             team2_score=team2_score,
@@ -181,11 +294,15 @@ def make_prediction():
     return redirect(url_for('predictions'))
 
 @app.route('/admin')
+@login_required
+@admin_required
 def admin():
     games = Game.query.order_by(Game.game_date).all()
     return render_template('admin.html', games=games)
 
 @app.route('/upload_games', methods=['POST'])
+@login_required
+@admin_required
 def upload_games():
     if 'file' not in request.files:
         flash('No file selected', 'error')
@@ -204,8 +321,16 @@ def upload_games():
             
             games_added = 0
             for row in reader:
-                # Expected CSV columns: team1, team2, date, time, round
+                # Expected CSV columns: team1, team2, date, time, round, prediction_deadline
                 game_date = datetime.strptime(f"{row['date']} {row['time']}", "%Y-%m-%d %H:%M")
+                
+                # Parse prediction deadline
+                if 'prediction_deadline' in row and row['prediction_deadline']:
+                    prediction_deadline = datetime.strptime(row['prediction_deadline'], "%Y-%m-%d %H:%M")
+                else:
+                    # Default: 30 minutes before game start
+                    from datetime import timedelta
+                    prediction_deadline = game_date - timedelta(minutes=30)
                 
                 # Check if game already exists
                 existing = Game.query.filter_by(
@@ -219,6 +344,7 @@ def upload_games():
                         team1=row['team1'],
                         team2=row['team2'],
                         game_date=game_date,
+                        prediction_deadline=prediction_deadline,
                         round_name=row['round']
                     )
                     db.session.add(game)
@@ -235,6 +361,8 @@ def upload_games():
     return redirect(url_for('admin'))
 
 @app.route('/update_result', methods=['POST'])
+@login_required
+@admin_required
 def update_result():
     game_id = request.form.get('game_id')
     team1_score = request.form.get('team1_score')
@@ -271,15 +399,45 @@ def update_result():
     
     return redirect(url_for('admin'))
 
-@app.route('/get_prediction/<int:user_id>/<int:game_id>')
-def get_prediction(user_id, game_id):
-    prediction = Prediction.query.filter_by(user_id=user_id, game_id=game_id).first()
+@app.route('/get_prediction/<int:game_id>')
+@login_required
+def get_prediction(game_id):
+    prediction = Prediction.query.filter_by(user_id=current_user.id, game_id=game_id).first()
     if prediction:
         return jsonify({
             'team1_score': prediction.team1_score,
             'team2_score': prediction.team2_score
         })
     return jsonify({'team1_score': '', 'team2_score': ''})
+
+@app.route('/game_predictions/<int:game_id>')
+@login_required
+def game_predictions(game_id):
+    game = Game.query.get_or_404(game_id)
+    
+    # Only show predictions if deadline has passed
+    if not game.are_predictions_visible():
+        return jsonify({'error': 'Predictions not yet visible'}), 403
+    
+    predictions = Prediction.query.filter_by(game_id=game_id).join(User).all()
+    predictions_data = []
+    for pred in predictions:
+        predictions_data.append({
+            'user_name': pred.user.name,
+            'team1_score': pred.team1_score,
+            'team2_score': pred.team2_score,
+            'predicted_winner': pred.predicted_winner,
+            'points': pred.points
+        })
+    
+    return jsonify({
+        'game': {
+            'team1': game.team1,
+            'team2': game.team2,
+            'round_name': game.round_name
+        },
+        'predictions': predictions_data
+    })
 
 # Initialize database
 with app.app_context():

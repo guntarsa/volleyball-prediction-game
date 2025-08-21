@@ -53,12 +53,21 @@
                 </div>
                 
                 <div class="text-center mt-4">
-                    <a href="{{ url_for('predictions') }}" class="btn btn-primary btn-lg me-3">
-                        <i class="fas fa-play"></i> Start Predicting
-                    </a>
-                    <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-primary btn-lg">
-                        <i class="fas fa-trophy"></i> View Leaderboard
-                    </a>
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('predictions') }}" class="btn btn-primary btn-lg me-3">
+                            <i class="fas fa-play"></i> Start Predicting
+                        </a>
+                        <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-trophy"></i> View Leaderboard
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">
+                            <i class="fas fa-user-plus"></i> Join the Game
+                        </a>
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-sign-in-alt"></i> Sign In
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -69,14 +78,25 @@
                     <i class="fas fa-info-circle text-info"></i>
                     Getting Started
                 </h5>
+                {% if current_user.is_authenticated %}
                 <p class="card-text">
-                    First time here? Add your name to the leaderboard and start making predictions!
-                    Results are updated after each match, and points are calculated automatically.
+                    Welcome back, <strong>{{ current_user.name }}</strong>! 
+                    Make your predictions before the deadlines and track your progress on the leaderboard.
+                </p>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle"></i>
+                    Remember: predictions are locked at the deadline, and you can only see others' predictions after!
+                </small>
+                {% else %}
+                <p class="card-text">
+                    Register to join your friends in predicting volleyball match results.
+                    Make predictions before deadlines and compete for the top spot!
                 </p>
                 <small class="text-muted">
                     <i class="fas fa-users"></i>
-                    Invite your friends to join and see who's the best predictor!
+                    Your friends can register using the invite link in the game!
                 </small>
+                {% endif %}
             </div>
         </div>
     </div>

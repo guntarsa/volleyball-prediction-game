@@ -8,23 +8,20 @@
 <div class="row">
     <div class="col-lg-8 mx-auto">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header text-center">
                 <h5 class="mb-0">
-                    <i class="fas fa-user-plus"></i>
-                    Add New Player
+                    <i class="fas fa-info-circle"></i>
+                    Invite Your Friends
                 </h5>
             </div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('add_user') }}" class="row g-3">
-                    <div class="col-md-8">
-                        <input type="text" name="name" class="form-control" placeholder="Enter your name" maxlength="50" required>
-                    </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-plus"></i> Join Game
-                        </button>
-                    </div>
-                </form>
+            <div class="card-body text-center">
+                <p>Share this link with your friends so they can register and join the prediction game:</p>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="inviteLink" value="{{ request.url_root }}register" readonly>
+                    <button class="btn btn-outline-primary" onclick="copyInviteLink()">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -145,4 +142,28 @@
     <p>Be the first to join the prediction game!</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyInviteLink() {
+    const linkInput = document.getElementById('inviteLink');
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(linkInput.value).then(function() {
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.add('btn-success');
+        button.classList.remove('btn-outline-primary');
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-primary');
+        }, 2000);
+    });
+}
+</script>
 {% endblock %}

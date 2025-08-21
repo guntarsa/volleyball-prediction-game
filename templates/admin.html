@@ -20,7 +20,7 @@
                         <label for="file" class="form-label">Select CSV File:</label>
                         <input type="file" name="file" id="file" class="form-control" accept=".csv" required>
                         <div class="form-text">
-                            CSV should have columns: team1, team2, date, time, round
+                            CSV should have columns: team1, team2, date, time, round, prediction_deadline
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">
@@ -40,13 +40,14 @@
                 </h5>
             </div>
             <div class="card-body">
-                <pre class="bg-light p-3 rounded"><code>team1,team2,date,time,round
-Brazil,Italy,2024-09-15,14:00,Quarter Final 1
-USA,Poland,2024-09-15,17:00,Quarter Final 2
-Serbia,Turkey,2024-09-16,14:00,Quarter Final 3</code></pre>
+                <pre class="bg-light p-3 rounded"><code>team1,team2,date,time,round,prediction_deadline
+Brazil,Italy,2024-09-15,14:00,Quarter Final 1,2024-09-15,13:30
+USA,Poland,2024-09-15,17:00,Quarter Final 2,2024-09-15,16:30
+Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                 <small class="text-muted">
                     <i class="fas fa-calendar"></i> Date format: YYYY-MM-DD<br>
-                    <i class="fas fa-clock"></i> Time format: HH:MM (24-hour)
+                    <i class="fas fa-clock"></i> Time format: HH:MM (24-hour)<br>
+                    <i class="fas fa-stopwatch"></i> Prediction deadline: YYYY-MM-DD HH:MM
                 </small>
             </div>
         </div>
@@ -69,6 +70,7 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3</code></pre>
                         <thead class="table-primary">
                             <tr>
                                 <th>Date & Time</th>
+                                <th>Deadline</th>
                                 <th>Round</th>
                                 <th>Teams</th>
                                 <th>Result</th>
@@ -82,6 +84,15 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3</code></pre>
                                 <td>
                                     <small>{{ game.game_date.strftime('%Y-%m-%d') }}</small><br>
                                     <strong>{{ game.game_date.strftime('%H:%M') }}</strong>
+                                </td>
+                                <td>
+                                    <small>{{ game.prediction_deadline.strftime('%m-%d') }}</small><br>
+                                    <strong>{{ game.prediction_deadline.strftime('%H:%M') }}</strong>
+                                    {% if game.is_prediction_open() %}
+                                        <br><span class="badge bg-success">Open</span>
+                                    {% else %}
+                                        <br><span class="badge bg-danger">Closed</span>
+                                    {% endif %}
                                 </td>
                                 <td>{{ game.round_name }}</td>
                                 <td>
