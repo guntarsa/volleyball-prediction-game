@@ -787,7 +787,23 @@ def game_predictions(game_id):
 
 # Initialize database
 with app.app_context():
-    db.create_all()
+    try:
+        # Create all tables (this will only create missing tables)
+        db.create_all()
+        print("Database tables initialized successfully")
+        
+        # Check if we need to add the password_reset_required column
+        inspector = db.inspect(db.engine)
+        user_columns = [col['name'] for col in inspector.get_columns('user')]
+        
+        if 'password_reset_required' not in user_columns:
+            print("Adding password_reset_required column to existing User table...")
+            db.engine.execute('ALTER TABLE user ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE')
+            print("password_reset_required column added successfully")
+            
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # Continue anyway - the app might still work with existing tables
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
