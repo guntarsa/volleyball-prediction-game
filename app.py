@@ -185,10 +185,15 @@ def calculate_tournament_points(prediction, tournament_config):
     if prediction.first_place == tournament_config.first_place_result:
         points += 50
     
-    # Check medalists (2nd and 3rd place) - 25 points each
-    if prediction.second_place == tournament_config.second_place_result:
+    # Get user's predictions as a list
+    user_predictions = [prediction.first_place, prediction.second_place, prediction.third_place]
+    
+    # Check if user mentioned actual 2nd place anywhere in their predictions - 25 points
+    if tournament_config.second_place_result in user_predictions:
         points += 25
-    if prediction.third_place == tournament_config.third_place_result:
+    
+    # Check if user mentioned actual 3rd place anywhere in their predictions - 25 points  
+    if tournament_config.third_place_result in user_predictions:
         points += 25
     
     return points
@@ -408,11 +413,35 @@ def upload_games():
             games_added = 0
             for row in reader:
                 # Expected CSV columns: team1, team2, date, time, round, prediction_deadline
-                game_date = datetime.strptime(f"{row['date']} {row['time']}", "%Y-%m-%d %H:%M")
+                try:
+                    # Handle different date/time formats
+                    if 'time' in row and row['time']:
+                        # Separate date and time columns
+                        game_date = datetime.strptime(f"{row['date']} {row['time']}", "%Y-%m-%d %H:%M")
+                    else:
+                        # Single datetime column
+                        game_date = datetime.strptime(row['date'], "%Y-%m-%d %H:%M")
+                except ValueError:
+                    try:
+                        # Try with comma between date and time
+                        game_date = datetime.strptime(f"{row['date']},{row['time']}", "%Y-%m-%d,%H:%M")
+                    except ValueError:
+                        flash(f'Invalid date/time format in row: {row}', 'error')
+                        continue
                 
                 # Parse prediction deadline
                 if 'prediction_deadline' in row and row['prediction_deadline']:
-                    prediction_deadline = datetime.strptime(row['prediction_deadline'], "%Y-%m-%d %H:%M")
+                    try:
+                        prediction_deadline = datetime.strptime(row['prediction_deadline'], "%Y-%m-%d %H:%M")
+                    except ValueError:
+                        try:
+                            # Try with comma format
+                            prediction_deadline = datetime.strptime(row['prediction_deadline'], "%Y-%m-%d,%H:%M")
+                        except ValueError:
+                            flash(f'Invalid prediction deadline format: {row["prediction_deadline"]}', 'error')
+                            # Default: 30 minutes before game start
+                            from datetime import timedelta
+                            prediction_deadline = game_date - timedelta(minutes=30)
                 else:
                     # Default: 30 minutes before game start
                     from datetime import timedelta
