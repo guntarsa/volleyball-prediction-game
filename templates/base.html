@@ -2,8 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>{% block title %}Volleyball Predictions{% endblock %}</title>
+    
+    <!-- PWA and Mobile Optimizations -->
+    <meta name="description" content="Make volleyball predictions and compete with friends in tournaments">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="VB Predictions">
+    
+    <!-- Prevent zoom on input focus -->
+    <meta name="format-detection" content="telephone=no">
+    
+    <!-- Touch icons -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDE4MCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiByeD0iMjQiIGZpbGw9IiM2NjdlZWEiLz4KPHN2ZyB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNNDMyIDk2SDgwYy04LjggMC0xNiA3LjItMTYgMTZ2Mjg4YzAgOC44IDcuMiAxNiAxNiAxNmgzNTJjOC44IDAgMTYtNy4yIDE2LTE2VjExMmMwLTguOC03LjItMTYtMTYtMTZ6bTMyIDMwNGMwIDUzLTQzIDk2LTk2IDk2SDEyOGMtNTMgMC05Ni00My05Ni05NlYxMTJjMC01MyA0My05NiA5Ni05NmgyNDBjNTMgMCA5NiA0MyA5NiA9NnYyODh6Ii8+CjwvZz4KPC9zdmc+">
+    <meta name="msapplication-TileColor" content="#667eea">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css" rel="stylesheet">
@@ -11,7 +25,17 @@
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            font-family: 'Arial', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            
+            /* Improve touch scrolling */
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevent zoom on input focus for mobile */
+        input[type="number"], input[type="email"], input[type="password"], input[type="text"] {
+            font-size: 16px !important;
         }
         
         .navbar {
@@ -199,9 +223,11 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
+        /* Mobile-first responsive design */
         @media (max-width: 768px) {
             .main-content {
                 padding: 1rem 0;
+                margin-top: 60px; /* Reduce top margin for mobile */
             }
             
             .team-flag {
@@ -210,13 +236,346 @@
                 margin-right: 6px;
             }
             
+            /* Mobile-friendly date filtering */
             .date-buttons-container {
-                justify-content: center;
+                position: relative;
+            }
+            
+            .date-scroll-container {
+                overflow-x: auto;
+                display: flex;
+                flex-wrap: nowrap;
+                gap: 0.5rem;
+                padding: 0.5rem 0;
+                margin-bottom: 1rem;
+                -webkit-overflow-scrolling: touch;
+                scroll-behavior: smooth;
+                
+                /* Scrollbar styling */
+                scrollbar-width: thin;
+                scrollbar-color: rgba(102, 126, 234, 0.3) rgba(0, 0, 0, 0.1);
+            }
+            
+            .date-scroll-container::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .date-scroll-container::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 2px;
+            }
+            
+            .date-scroll-container::-webkit-scrollbar-thumb {
+                background: rgba(102, 126, 234, 0.5);
+                border-radius: 2px;
+            }
+            
+            .date-scroll-container::-webkit-scrollbar-thumb:hover {
+                background: rgba(102, 126, 234, 0.8);
             }
             
             .date-filter-btn {
                 min-width: 80px;
                 font-size: 0.85rem;
+                flex-shrink: 0;
+                white-space: nowrap;
+                min-height: 60px;
+                position: relative;
+                transition: all 0.3s ease;
+                border-width: 2px;
+            }
+            
+            .date-filter-btn:active {
+                transform: scale(0.95);
+                box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            }
+            
+            .date-filter-btn[data-has-upcoming="True"] {
+                position: relative;
+                overflow: visible;
+            }
+            
+            .date-filter-btn[data-has-upcoming="True"]:before {
+                content: "";
+                position: absolute;
+                top: -2px;
+                right: -2px;
+                width: 8px;
+                height: 8px;
+                background-color: #28a745;
+                border-radius: 50%;
+                border: 2px solid white;
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+                50% {
+                    transform: scale(1.2);
+                    opacity: 0.7;
+                }
+                100% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+            
+            /* Mobile prediction forms */
+            .mobile-prediction-stack {
+                display: block !important;
+            }
+            
+            .mobile-team-card {
+                margin-bottom: 1.5rem;
+                padding: 1.5rem 1rem;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            
+            .mobile-vs-section {
+                text-align: center;
+                margin: 1rem 0;
+                padding: 1rem 0;
+                border-top: 2px dashed #dee2e6;
+                border-bottom: 2px dashed #dee2e6;
+            }
+            
+            .mobile-submit-btn {
+                width: 100%;
+                padding: 1rem;
+                font-size: 1.1rem;
+                border-radius: 12px;
+                margin-top: 1rem;
+                min-height: 50px; /* Minimum touch target */
+            }
+            
+            /* Mobile input improvements */
+            .score-input {
+                max-width: 100px;
+                height: 50px;
+                font-size: 1.25rem;
+                border-radius: 8px;
+                margin: 0.5rem auto;
+            }
+            
+            /* Mobile cards */
+            .card {
+                margin-bottom: 1.5rem;
+                border-radius: 12px;
+            }
+            
+            .card-header {
+                padding: 1rem;
+                border-radius: 12px 12px 0 0;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+            
+            /* Mobile navigation */
+            .navbar {
+                padding: 0.5rem 0;
+            }
+            
+            .navbar-brand {
+                font-size: 1.1rem;
+                font-weight: 600;
+                padding: 0.5rem 0;
+            }
+            
+            .navbar-toggler {
+                border: none;
+                padding: 0.5rem;
+                border-radius: 8px;
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            .navbar-toggler:focus {
+                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+            }
+            
+            .navbar-nav .nav-link {
+                padding: 0.75rem 1rem;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                border-radius: 8px;
+                margin: 0.25rem 0;
+                transition: all 0.3s ease;
+            }
+            
+            .navbar-nav .nav-link:hover {
+                background-color: rgba(102, 126, 234, 0.1);
+                transform: translateX(5px);
+            }
+            
+            .navbar-nav .nav-link:active {
+                background-color: rgba(102, 126, 234, 0.2);
+                transform: scale(0.98);
+            }
+            
+            .dropdown-menu {
+                border: none;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+                border-radius: 12px;
+                margin-top: 0.5rem;
+            }
+            
+            .dropdown-item {
+                padding: 0.75rem 1rem;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                border-radius: 8px;
+                margin: 0.25rem 0.5rem;
+            }
+            
+            .dropdown-item:hover {
+                background-color: rgba(102, 126, 234, 0.1);
+            }
+            
+            /* Mobile typography */
+            .page-title {
+                font-size: 1.75rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            h5.team-name {
+                font-size: 1rem;
+                line-height: 1.3;
+            }
+            
+            /* Mobile buttons and touch targets */
+            .btn {
+                min-height: 44px; /* Apple's minimum touch target */
+                padding: 0.75rem 1rem;
+            }
+            
+            .btn-sm {
+                min-height: 38px;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            /* Mobile tables */
+            .table-responsive {
+                border-radius: 8px;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Mobile game cards */
+            .game-card {
+                margin-bottom: 1rem;
+                padding: 1rem;
+            }
+            
+            /* Mobile date sections */
+            .date-section .card-header {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+            
+            .toggle-icon {
+                font-size: 1.2rem;
+            }
+            
+            /* Mobile admin cards */
+            .mobile-game-card {
+                border: 1px solid rgba(0, 0, 0, 0.125);
+                transition: all 0.3s ease;
+            }
+            
+            .mobile-game-card:hover {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                transform: translateY(-2px);
+            }
+            
+            .mobile-game-card .form-check-input {
+                margin-right: 0.5rem;
+            }
+            
+            .mobile-game-card .team-info {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .mobile-game-card .team-info strong {
+                font-size: 0.9rem;
+                line-height: 1.2;
+            }
+            
+            /* Mobile leaderboard cards */
+            .leaderboard-mobile-card {
+                border-left: 4px solid #667eea;
+                transition: all 0.3s ease;
+            }
+            
+            .leaderboard-mobile-card:hover {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                transform: translateX(3px);
+            }
+            
+            .leaderboard-mobile-card .rank-badge {
+                min-width: 40px;
+                text-align: center;
+            }
+        }
+        
+        /* Small mobile phones */
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 0.75rem;
+            }
+            
+            .main-content {
+                margin-top: 50px;
+                padding: 0.5rem 0;
+            }
+            
+            .page-title {
+                font-size: 1.5rem;
+                margin-bottom: 1rem;
+            }
+            
+            .mobile-team-card {
+                padding: 1rem 0.75rem;
+                margin-bottom: 1rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            .date-filter-btn {
+                min-width: 70px;
+                font-size: 0.8rem;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            .score-input {
+                max-width: 80px;
+                height: 45px;
+                font-size: 1.1rem;
+            }
+        }
+        
+        /* Landscape mobile orientation */
+        @media (max-width: 896px) and (orientation: landscape) {
+            .main-content {
+                margin-top: 50px;
+                padding: 0.5rem 0;
+            }
+            
+            .mobile-prediction-stack .row {
+                align-items: center;
+            }
+            
+            .mobile-team-card {
+                margin-bottom: 1rem;
             }
         }
     </style>
@@ -225,47 +584,69 @@
     <nav class="navbar navbar-expand-lg navbar-light fixed-top">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-volleyball-ball"></i> Volleyball Predictions
+                <i class="fas fa-volleyball-ball me-2"></i>
+                <span class="d-none d-sm-inline">Volleyball Predictions</span>
+                <span class="d-sm-none">VB Predictions</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home d-lg-none me-2"></i>Home
+                        </a>
                     </li>
                     {% if current_user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('predictions') }}">Match Predictions</a>
+                            <a class="nav-link" href="{{ url_for('predictions') }}">
+                                <i class="fas fa-gamepad d-lg-none me-2"></i>
+                                <span class="d-none d-lg-inline">Match Predictions</span>
+                                <span class="d-lg-none">Matches</span>
+                            </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('tournament_predictions') }}">Tournament Predictions</a>
+                            <a class="nav-link" href="{{ url_for('tournament_predictions') }}">
+                                <i class="fas fa-trophy d-lg-none me-2"></i>
+                                <span class="d-none d-lg-inline">Tournament Predictions</span>
+                                <span class="d-lg-none">Tournament</span>
+                            </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('leaderboard') }}">Leaderboard</a>
+                            <a class="nav-link" href="{{ url_for('leaderboard') }}">
+                                <i class="fas fa-medal d-lg-none me-2"></i>Leaderboard
+                            </a>
                         </li>
                         {% if current_user.is_admin %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('admin') }}">Admin</a>
+                            <a class="nav-link" href="{{ url_for('admin') }}">
+                                <i class="fas fa-cog d-lg-none me-2"></i>Admin
+                            </a>
                         </li>
                         {% endif %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> {{ current_user.name }}
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user me-2"></i>
+                                <span class="d-none d-sm-inline">{{ current_user.name }}</span>
+                                <span class="d-sm-none">Profile</span>
                             </a>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{{ url_for('logout') }}">
-                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                    <i class="fas fa-sign-out-alt me-2"></i> Logout
                                 </a></li>
                             </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                            <a class="nav-link" href="{{ url_for('login') }}">
+                                <i class="fas fa-sign-in-alt d-lg-none me-2"></i>Login
+                            </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                            <a class="nav-link" href="{{ url_for('register') }}">
+                                <i class="fas fa-user-plus d-lg-none me-2"></i>Register
+                            </a>
                         </li>
                     {% endif %}
                 </ul>

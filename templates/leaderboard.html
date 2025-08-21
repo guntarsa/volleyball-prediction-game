@@ -38,7 +38,8 @@
                 </h5>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <!-- Desktop Table -->
+                <div class="table-responsive d-none d-md-block">
                     <table class="table table-hover mb-0">
                         <thead class="table-primary">
                             <tr>
@@ -86,8 +87,55 @@
                                 </td>
                             </tr>
                             {% endfor %}
+                            {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- Mobile Card View -->
+                <div class="d-md-none">
+                    {% for user in users %}
+                    <div class="card mb-2 leaderboard-mobile-card">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <div class="rank-badge me-3">
+                                        {% if loop.index == 1 %}
+                                            <i class="fas fa-crown text-warning fs-4"></i>
+                                        {% elif loop.index == 2 %}
+                                            <i class="fas fa-medal text-secondary fs-5"></i>
+                                        {% elif loop.index == 3 %}
+                                            <i class="fas fa-medal text-warning fs-5"></i>
+                                        {% else %}
+                                            <span class="badge bg-primary fs-6">{{ loop.index }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-bold">{{ user.name }}</h6>
+                                        <div class="d-flex gap-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-gamepad me-1"></i>{{ user.total_predictions }}
+                                            </small>
+                                            <small class="text-muted">
+                                                <i class="fas fa-check-circle me-1"></i>{{ user.correct_predictions }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="h5 mb-1 text-primary">{{ user.total_score }}</div>
+                                    {% if user.accuracy >= 70 %}
+                                        <span class="badge bg-success">{{ user.accuracy }}%</span>
+                                    {% elif user.accuracy >= 50 %}
+                                        <span class="badge bg-warning text-dark">{{ user.accuracy }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ user.accuracy }}%</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

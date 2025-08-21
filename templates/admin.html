@@ -331,11 +331,15 @@ Dominican Republic,do
                 {% if games %}
                 <div class="mb-3">
                     <button id="bulkDeleteBtn" class="btn btn-danger" onclick="bulkDeleteGames()" style="display: none;">
-                        <i class="fas fa-trash"></i> Delete Selected Games
+                        <i class="fas fa-trash"></i> 
+                        <span class="d-none d-sm-inline">Delete Selected Games</span>
+                        <span class="d-sm-none">Delete Selected</span>
                     </button>
                     <span id="selectedCount" class="text-muted ms-2"></span>
                 </div>
-                <div class="table-responsive">
+                
+                <!-- Desktop Table View -->
+                <div class="table-responsive d-none d-lg-block">
                     <table class="table table-hover">
                         <thead class="table-primary">
                             <tr>
@@ -422,6 +426,96 @@ Dominican Republic,do
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- Mobile Card View -->
+                <div class="d-lg-none">
+                    {% for game in games %}
+                    <div class="card mb-3 mobile-game-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input game-checkbox" value="{{ game.id }}" 
+                                           onchange="updateBulkDeleteButton()" id="gameCheck{{ game.id }}">
+                                    <label class="form-check-label fw-bold" for="gameCheck{{ game.id }}">
+                                        {{ game.round_name }}
+                                    </label>
+                                </div>
+                                <div class="text-end">
+                                    {% if game.is_finished %}
+                                        <span class="badge bg-success mb-1">
+                                            <i class="fas fa-check"></i> Finished
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark mb-1">
+                                            <i class="fas fa-clock"></i> Upcoming
+                                        </span>
+                                    {% endif %}
+                                    {% if game.is_prediction_open() %}
+                                        <span class="badge bg-success d-block">
+                                            <i class="fas fa-unlock"></i> Open
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger d-block">
+                                            <i class="fas fa-lock"></i> Closed
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted">Game Date</small>
+                                    <div class="fw-bold">{{ game.game_date.strftime('%m/%d') }}</div>
+                                    <div>{{ game.game_date.strftime('%H:%M') }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Deadline</small>
+                                    <div class="fw-bold">{{ game.prediction_deadline.strftime('%m/%d') }}</div>
+                                    <div>{{ game.prediction_deadline.strftime('%H:%M') }}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="team-info">
+                                        {% if get_country_code(game.team1) %}
+                                            <span class="fi fi-{{ get_country_code(game.team1) }} team-flag me-1"></span>
+                                        {% endif %}
+                                        <strong>{{ game.team1 }}</strong>
+                                    </div>
+                                    <div class="text-center">
+                                        <small class="text-muted">VS</small>
+                                        {% if game.is_finished %}
+                                            <div class="badge bg-success">{{ game.team1_score }} - {{ game.team2_score }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="team-info text-end">
+                                        <strong>{{ game.team2 }}</strong>
+                                        {% if get_country_code(game.team2) %}
+                                            <span class="fi fi-{{ get_country_code(game.team2) }} team-flag ms-1"></span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                {% if not game.is_finished %}
+                                <button class="btn btn-primary btn-sm" onclick="showUpdateModal({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}')">
+                                    <i class="fas fa-edit"></i> Update Result
+                                </button>
+                                {% else %}
+                                <button class="btn btn-secondary btn-sm" onclick="showUpdateModal({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}', {{ game.team1_score }}, {{ game.team2_score }})">
+                                    <i class="fas fa-edit"></i> Edit Result
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-outline-danger btn-sm" onclick="confirmDelete({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
                 {% else %}
                 <div class="alert alert-info text-center">

@@ -49,7 +49,8 @@
                 </h5>
             </div>
             <div class="card-body">
-                <div class="d-flex flex-wrap gap-2 mb-3">
+                <!-- Mobile/Desktop Filter Controls -->
+                <div class="d-none d-md-flex flex-wrap gap-2 mb-3">
                     <button class="btn btn-sm btn-outline-primary" onclick="showAllDates()" id="showAllBtn">
                         <i class="fas fa-eye"></i> Show All
                     </button>
@@ -60,19 +61,66 @@
                         <i class="fas fa-clock"></i> Upcoming Only
                     </button>
                 </div>
+                
+                <!-- Mobile-Only Filter Controls -->
+                <div class="d-md-none mb-3">
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-primary w-100" onclick="showAllDates()" id="showAllBtnMobile">
+                                <i class="fas fa-eye d-block mb-1"></i>
+                                <small>Show All</small>
+                            </button>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-secondary w-100" onclick="hideAllDates()" id="hideAllBtnMobile">
+                                <i class="fas fa-eye-slash d-block mb-1"></i>
+                                <small>Hide All</small>
+                            </button>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-success w-100" onclick="showUpcomingOnly()" id="upcomingBtnMobile">
+                                <i class="fas fa-clock d-block mb-1"></i>
+                                <small>Upcoming</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Date Selection - Horizontal Scroll on Mobile -->
                 <div class="date-buttons-container">
-                    {% for date_str in games_by_date.keys() | sort %}
-                        {% set date_obj = games_by_date[date_str][0].game_date %}
-                        {% set has_upcoming = games_by_date[date_str] | selectattr('is_finished', 'equalto', False) | list | length > 0 %}
-                        <button class="btn btn-sm date-filter-btn me-2 mb-2 
-                                       {% if has_upcoming %}btn-success{% else %}btn-secondary{% endif %}"
-                                onclick="toggleDate('{{ date_str }}')" 
-                                id="dateBtn_{{ date_str }}">
-                            <i class="fas fa-calendar-day"></i>
-                            {{ date_obj.strftime('%b %d') }}
-                            <small class="d-block">{{ games_by_date[date_str] | length }} games</small>
-                        </button>
-                    {% endfor %}
+                    <div class="d-none d-md-block">
+                        <small class="text-muted mb-2 d-block">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Click dates to show/hide specific days
+                        </small>
+                    </div>
+                    <div class="d-md-none mb-2">
+                        <small class="text-muted">
+                            <i class="fas fa-swatchbook me-1"></i>
+                            Swipe left/right to see more dates
+                        </small>
+                    </div>
+                    <div class="date-scroll-container">
+                        {% for date_str in games_by_date.keys() | sort %}
+                            {% set date_obj = games_by_date[date_str][0].game_date %}
+                            {% set has_upcoming = games_by_date[date_str] | selectattr('is_finished', 'equalto', False) | list | length > 0 %}
+                            <button class="btn btn-sm date-filter-btn me-2 mb-2 
+                                           {% if has_upcoming %}btn-success{% else %}btn-secondary{% endif %}"
+                                    onclick="toggleDate('{{ date_str }}')" 
+                                    id="dateBtn_{{ date_str }}"
+                                    data-has-upcoming="{{ has_upcoming }}">
+                                <i class="fas fa-calendar-day mb-1 d-block d-md-inline"></i>
+                                <div class="d-md-none">
+                                    <div class="fw-bold">{{ date_obj.strftime('%m/%d') }}</div>
+                                    <small>{{ games_by_date[date_str] | length }}g</small>
+                                </div>
+                                <span class="d-none d-md-inline">
+                                    {{ date_obj.strftime('%b %d') }}
+                                    <small class="d-block">{{ games_by_date[date_str] | length }} games</small>
+                                </span>
+                            </button>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -175,7 +223,8 @@
         <form method="POST" action="{{ url_for('make_prediction') }}" class="prediction-form">
             <input type="hidden" name="game_id" value="{{ game.id }}">
             
-            <div class="row">
+            <!-- Desktop Layout -->
+            <div class="row d-none d-md-flex">
                 <!-- Team 1 Column -->
                 <div class="col-md-5">
                     <div class="team-prediction-card text-center">
@@ -240,6 +289,66 @@
                 </div>
             </div>
             
+            <!-- Mobile Layout -->
+            <div class="mobile-prediction-stack d-md-none">
+                <!-- Team 1 Mobile Card -->
+                <div class="mobile-team-card bg-light">
+                    <div class="text-center mb-3">
+                        <h5 class="team-name fw-bold text-primary mb-2">
+                            {% if get_country_code(game.team1) %}
+                                <span class="fi fi-{{ get_country_code(game.team1) }} team-flag-large"></span>
+                            {% endif %}
+                            {{ game.team1 }}
+                        </h5>
+                    </div>
+                    <div class="prediction-input-section text-center">
+                        <label for="team1_score_mobile_{{ game.id }}" class="form-label fw-semibold mb-3 d-block">Sets Won</label>
+                        <input type="number" name="team1_score" id="team1_score_mobile_{{ game.id }}" 
+                               class="form-control form-control-lg text-center score-input mx-auto d-block mb-2" 
+                               min="0" max="3" placeholder="0-3" required>
+                        <small class="text-muted d-block">Enter sets won (0-3)</small>
+                    </div>
+                </div>
+                
+                <!-- Mobile VS Section -->
+                <div class="mobile-vs-section">
+                    <span class="h2 text-muted fw-bold">VS</span>
+                </div>
+                
+                <!-- Team 2 Mobile Card -->
+                <div class="mobile-team-card bg-light">
+                    <div class="text-center mb-3">
+                        <h5 class="team-name fw-bold text-primary mb-2">
+                            {% if get_country_code(game.team2) %}
+                                <span class="fi fi-{{ get_country_code(game.team2) }} team-flag-large"></span>
+                            {% endif %}
+                            {{ game.team2 }}
+                        </h5>
+                    </div>
+                    <div class="prediction-input-section text-center">
+                        <label for="team2_score_mobile_{{ game.id }}" class="form-label fw-semibold mb-3 d-block">Sets Won</label>
+                        <input type="number" name="team2_score" id="team2_score_mobile_{{ game.id }}" 
+                               class="form-control form-control-lg text-center score-input mx-auto d-block mb-2" 
+                               min="0" max="3" placeholder="0-3" required>
+                        <small class="text-muted d-block">Enter sets won (0-3)</small>
+                    </div>
+                </div>
+                
+                <!-- Mobile Submit Button -->
+                <div class="text-center">
+                    <button type="submit" class="btn btn-success mobile-submit-btn" id="submit_btn_mobile_{{ game.id }}">
+                        <i class="fas fa-save me-2"></i>
+                        <span id="submit_text_mobile_{{ game.id }}">Save Prediction</span>
+                    </button>
+                    <div class="prediction-status mt-3" id="status_mobile_{{ game.id }}" style="display: none;">
+                        <div class="alert alert-success py-2 mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <span id="status_text_mobile_{{ game.id }}">Prediction saved</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="row mt-3">
                 <div class="col-12">
                     <div class="alert alert-info text-center py-2">
@@ -265,9 +374,6 @@
             <div id="predictions_{{ game.id }}" class="mt-3" style="display: none;"></div>
         </div>
         {% endif %}
-                            {% endif %}
-                        </div>
-                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -296,62 +402,130 @@ function loadUserPrediction(gameId) {
     fetch(`/get_prediction/${gameId}`)
         .then(response => response.json())
         .then(data => {
+            // Get both desktop and mobile elements
             const team1Input = document.getElementById(`team1_score_${gameId}`);
             const team2Input = document.getElementById(`team2_score_${gameId}`);
+            const team1InputMobile = document.getElementById(`team1_score_mobile_${gameId}`);
+            const team2InputMobile = document.getElementById(`team2_score_mobile_${gameId}`);
+            
             const submitText = document.getElementById(`submit_text_${gameId}`);
             const submitBtn = document.getElementById(`submit_btn_${gameId}`);
+            const submitTextMobile = document.getElementById(`submit_text_mobile_${gameId}`);
+            const submitBtnMobile = document.getElementById(`submit_btn_mobile_${gameId}`);
+            
             const statusDiv = document.getElementById(`status_${gameId}`);
             const statusText = document.getElementById(`status_text_${gameId}`);
+            const statusDivMobile = document.getElementById(`status_mobile_${gameId}`);
+            const statusTextMobile = document.getElementById(`status_text_mobile_${gameId}`);
             
             if (data.team1_score !== null && data.team2_score !== null && data.team1_score !== '' && data.team2_score !== '') {
-                // Existing prediction found
-                team1Input.value = data.team1_score;
-                team2Input.value = data.team2_score;
+                // Existing prediction found - update both desktop and mobile
+                if (team1Input) team1Input.value = data.team1_score;
+                if (team2Input) team2Input.value = data.team2_score;
+                if (team1InputMobile) team1InputMobile.value = data.team1_score;
+                if (team2InputMobile) team2InputMobile.value = data.team2_score;
                 
-                // Update button and status
-                submitText.textContent = 'Update Prediction';
-                submitBtn.classList.remove('btn-success');
-                submitBtn.classList.add('btn-warning');
-                submitBtn.querySelector('i').classList.remove('fa-save');
-                submitBtn.querySelector('i').classList.add('fa-edit');
+                // Update desktop button and status
+                if (submitText) submitText.textContent = 'Update Prediction';
+                if (submitBtn) {
+                    submitBtn.classList.remove('btn-success');
+                    submitBtn.classList.add('btn-warning');
+                    const icon = submitBtn.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-save');
+                        icon.classList.add('fa-edit');
+                    }
+                }
                 
-                // Show status
-                statusDiv.style.display = 'block';
-                statusText.textContent = `Current: ${data.team1_score} - ${data.team2_score}`;
+                // Update mobile button and status
+                if (submitTextMobile) submitTextMobile.textContent = 'Update Prediction';
+                if (submitBtnMobile) {
+                    submitBtnMobile.classList.remove('btn-success');
+                    submitBtnMobile.classList.add('btn-warning');
+                    const iconMobile = submitBtnMobile.querySelector('i');
+                    if (iconMobile) {
+                        iconMobile.classList.remove('fa-save');
+                        iconMobile.classList.add('fa-edit');
+                    }
+                }
                 
-                // Add visual enhancement to form
-                team1Input.classList.add('has-prediction');
-                team2Input.classList.add('has-prediction');
+                // Show status on both layouts
+                if (statusDiv) {
+                    statusDiv.style.display = 'block';
+                    if (statusText) statusText.textContent = `Current: ${data.team1_score} - ${data.team2_score}`;
+                }
+                if (statusDivMobile) {
+                    statusDivMobile.style.display = 'block';
+                    if (statusTextMobile) statusTextMobile.textContent = `Current: ${data.team1_score} - ${data.team2_score}`;
+                }
+                
+                // Add visual enhancement to form inputs
+                if (team1Input) team1Input.classList.add('has-prediction');
+                if (team2Input) team2Input.classList.add('has-prediction');
+                if (team1InputMobile) team1InputMobile.classList.add('has-prediction');
+                if (team2InputMobile) team2InputMobile.classList.add('has-prediction');
                 
                 // Add visual enhancement to team cards
-                const team1Card = team1Input.closest('.team-prediction-card');
-                const team2Card = team2Input.closest('.team-prediction-card');
+                const team1Card = team1Input?.closest('.team-prediction-card');
+                const team2Card = team2Input?.closest('.team-prediction-card');
+                const team1CardMobile = team1InputMobile?.closest('.mobile-team-card');
+                const team2CardMobile = team2InputMobile?.closest('.mobile-team-card');
+                
                 if (team1Card) team1Card.classList.add('has-existing-prediction');
                 if (team2Card) team2Card.classList.add('has-existing-prediction');
+                if (team1CardMobile) team1CardMobile.classList.add('has-existing-prediction');
+                if (team2CardMobile) team2CardMobile.classList.add('has-existing-prediction');
             } else {
-                // No prediction exists
-                team1Input.value = '';
-                team2Input.value = '';
+                // No prediction exists - reset both layouts
+                if (team1Input) team1Input.value = '';
+                if (team2Input) team2Input.value = '';
+                if (team1InputMobile) team1InputMobile.value = '';
+                if (team2InputMobile) team2InputMobile.value = '';
                 
-                // Reset button
-                submitText.textContent = 'Save Prediction';
-                submitBtn.classList.remove('btn-warning');
-                submitBtn.classList.add('btn-success');
-                submitBtn.querySelector('i').classList.remove('fa-edit');
-                submitBtn.querySelector('i').classList.add('fa-save');
+                // Reset desktop button
+                if (submitText) submitText.textContent = 'Save Prediction';
+                if (submitBtn) {
+                    submitBtn.classList.remove('btn-warning');
+                    submitBtn.classList.add('btn-success');
+                    const icon = submitBtn.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-edit');
+                        icon.classList.add('fa-save');
+                    }
+                }
                 
-                // Hide status
-                statusDiv.style.display = 'none';
+                // Reset mobile button
+                if (submitTextMobile) submitTextMobile.textContent = 'Save Prediction';
+                if (submitBtnMobile) {
+                    submitBtnMobile.classList.remove('btn-warning');
+                    submitBtnMobile.classList.add('btn-success');
+                    const iconMobile = submitBtnMobile.querySelector('i');
+                    if (iconMobile) {
+                        iconMobile.classList.remove('fa-edit');
+                        iconMobile.classList.add('fa-save');
+                    }
+                }
+                
+                // Hide status on both layouts
+                if (statusDiv) statusDiv.style.display = 'none';
+                if (statusDivMobile) statusDivMobile.style.display = 'none';
                 
                 // Remove visual enhancement
-                team1Input.classList.remove('has-prediction');
-                team2Input.classList.remove('has-prediction');
+                if (team1Input) team1Input.classList.remove('has-prediction');
+                if (team2Input) team2Input.classList.remove('has-prediction');
+                if (team1InputMobile) team1InputMobile.classList.remove('has-prediction');
+                if (team2InputMobile) team2InputMobile.classList.remove('has-prediction');
                 
                 // Remove visual enhancement from team cards
-                const team1Card = team1Input.closest('.team-prediction-card');
-                const team2Card = team2Input.closest('.team-prediction-card');
+                const team1Card = team1Input?.closest('.team-prediction-card');
+                const team2Card = team2Input?.closest('.team-prediction-card');
+                const team1CardMobile = team1InputMobile?.closest('.mobile-team-card');
+                const team2CardMobile = team2InputMobile?.closest('.mobile-team-card');
+                
                 if (team1Card) team1Card.classList.remove('has-existing-prediction');
                 if (team2Card) team2Card.classList.remove('has-existing-prediction');
+                if (team1CardMobile) team1CardMobile.classList.remove('has-existing-prediction');
+                if (team2CardMobile) team2CardMobile.classList.remove('has-existing-prediction');
             }
         })
         .catch(error => console.error('Error loading prediction:', error));
