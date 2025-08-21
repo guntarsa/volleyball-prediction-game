@@ -146,6 +146,59 @@
             align-items: center;
         }
 
+        /* Date filtering styles */
+        .date-buttons-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .date-filter-btn {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            min-width: 100px;
+        }
+        
+        .date-filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .date-section {
+            transition: all 0.3s ease;
+        }
+        
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s ease;
+        }
+        
+        .collapse {
+            transition: all 0.35s ease;
+        }
+        
+        .collapse:not(.show) {
+            display: none;
+        }
+        
+        .collapse.show {
+            display: block;
+        }
+        
+        /* Game card improvements */
+        .game-card {
+            transition: all 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        .game-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 padding: 1rem 0;
@@ -155,6 +208,15 @@
                 width: 16px;
                 height: 12px;
                 margin-right: 6px;
+            }
+            
+            .date-buttons-container {
+                justify-content: center;
+            }
+            
+            .date-filter-btn {
+                min-width: 80px;
+                font-size: 0.85rem;
             }
         }
     </style>

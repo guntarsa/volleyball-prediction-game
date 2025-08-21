@@ -63,7 +63,6 @@
                 <div class="date-buttons-container">
                     {% for date_str in games_by_date.keys() | sort %}
                         {% set date_obj = games_by_date[date_str][0].game_date %}
-                        {% set is_today = date_obj.strftime('%Y-%m-%d') == moment().strftime('%Y-%m-%d') %}
                         {% set has_upcoming = games_by_date[date_str] | selectattr('is_finished', 'equalto', False) | list | length > 0 %}
                         <button class="btn btn-sm date-filter-btn me-2 mb-2 
                                        {% if has_upcoming %}btn-success{% else %}btn-secondary{% endif %}"
@@ -71,7 +70,6 @@
                                 id="dateBtn_{{ date_str }}">
                             <i class="fas fa-calendar-day"></i>
                             {{ date_obj.strftime('%b %d') }}
-                            {% if is_today %}<span class="badge bg-warning text-dark ms-1">Today</span>{% endif %}
                             <small class="d-block">{{ games_by_date[date_str] | length }} games</small>
                         </button>
                     {% endfor %}
@@ -473,6 +471,151 @@ function addVolleyballValidation(form) {
             // When user comes back, loadUserPrediction will show the updated state
         }, 500);
     });
+}
+
+// Date filtering functions
+function showAllDates() {
+    const dateSections = document.querySelectorAll('.date-section');
+    dateSections.forEach(section => {
+        section.style.display = 'block';
+        const dateStr = section.id.replace('dateSection_', '');
+        const content = document.getElementById(`dateContent_${dateStr}`);
+        if (content) {
+            content.classList.add('show');
+        }
+        const icon = document.getElementById(`toggleIcon_${dateStr}`);
+        if (icon) {
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        }
+    });
+    
+    // Update button states
+    updateFilterButtonStates('showAll');
+}
+
+function hideAllDates() {
+    const dateSections = document.querySelectorAll('.date-section');
+    dateSections.forEach(section => {
+        const dateStr = section.id.replace('dateSection_', '');
+        const content = document.getElementById(`dateContent_${dateStr}`);
+        if (content) {
+            content.classList.remove('show');
+        }
+        const icon = document.getElementById(`toggleIcon_${dateStr}`);
+        if (icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        }
+    });
+    
+    // Update button states
+    updateFilterButtonStates('hideAll');
+}
+
+function showUpcomingOnly() {
+    const dateSections = document.querySelectorAll('.date-section');
+    let hasUpcoming = false;
+    
+    dateSections.forEach(section => {
+        const dateStr = section.id.replace('dateSection_', '');
+        const upcomingGames = section.querySelectorAll('.game-card:not([data-finished="true"])');
+        
+        if (upcomingGames.length > 0) {
+            section.style.display = 'block';
+            const content = document.getElementById(`dateContent_${dateStr}`);
+            if (content) {
+                content.classList.add('show');
+            }
+            const icon = document.getElementById(`toggleIcon_${dateStr}`);
+            if (icon) {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            }
+            hasUpcoming = true;
+        } else {
+            section.style.display = 'none';
+        }
+    });
+    
+    // Update button states
+    updateFilterButtonStates('upcomingOnly');
+}
+
+function toggleDate(dateStr) {
+    const section = document.getElementById(`dateSection_${dateStr}`);
+    const button = document.getElementById(`dateBtn_${dateStr}`);
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+    } else {
+        section.style.display = 'none';
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-secondary');
+    }
+}
+
+function toggleDateSection(dateStr) {
+    const content = document.getElementById(`dateContent_${dateStr}`);
+    const icon = document.getElementById(`toggleIcon_${dateStr}`);
+    
+    if (content && icon) {
+        if (content.classList.contains('show')) {
+            content.classList.remove('show');
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        } else {
+            content.classList.add('show');
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+}
+
+function updateFilterButtonStates(activeFilter) {
+    const showAllBtn = document.getElementById('showAllBtn');
+    const hideAllBtn = document.getElementById('hideAllBtn');
+    const upcomingBtn = document.getElementById('upcomingBtn');
+    
+    // Reset all buttons
+    [showAllBtn, hideAllBtn, upcomingBtn].forEach(btn => {
+        if (btn) {
+            btn.classList.remove('btn-primary', 'btn-outline-primary', 'btn-outline-secondary', 'btn-outline-success');
+        }
+    });
+    
+    // Set active button
+    switch (activeFilter) {
+        case 'showAll':
+            if (showAllBtn) {
+                showAllBtn.classList.add('btn-primary');
+                hideAllBtn.classList.add('btn-outline-secondary');
+                upcomingBtn.classList.add('btn-outline-success');
+            }
+            break;
+        case 'hideAll':
+            if (hideAllBtn) {
+                showAllBtn.classList.add('btn-outline-primary');
+                hideAllBtn.classList.add('btn-secondary');
+                upcomingBtn.classList.add('btn-outline-success');
+            }
+            break;
+        case 'upcomingOnly':
+            if (upcomingBtn) {
+                showAllBtn.classList.add('btn-outline-primary');
+                hideAllBtn.classList.add('btn-outline-secondary');
+                upcomingBtn.classList.add('btn-success');
+            }
+            break;
+        default:
+            if (showAllBtn) {
+                showAllBtn.classList.add('btn-outline-primary');
+                hideAllBtn.classList.add('btn-outline-secondary');
+                upcomingBtn.classList.add('btn-outline-success');
+            }
+    }
 }
 </script>
 {% endblock %}

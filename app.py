@@ -22,20 +22,25 @@ TEAM_COUNTRY_MAPPING = {
     'China': 'cn',
     'Netherlands': 'nl',
     'Dominican Republic': 'do',
-    'Russia': 'ru',
     'France': 'fr',
     'Germany': 'de',
-    'South Korea': 'kr',
     'Thailand': 'th',
     'Belgium': 'be',
     'Canada': 'ca',
     'Bulgaria': 'bg',
     'Argentina': 'ar',
     'Slovenia': 'si',
+    'Slovakia': 'sk',
     'Czech Republic': 'cz',
-    'Croatia': 'hr',
     'Puerto Rico': 'pr',
     'Ukraine': 'ua',
+    'Egypt': 'eg',
+    'Cameroon': 'cm',
+    'Mexico': 'mx',
+    'Kenya': 'ke',
+    'Spain': 'es',
+    'Kazakhstan': 'kz',
+    'Vietnam': 'vn'
 }
 
 def get_country_code(team_name):
@@ -1001,6 +1006,35 @@ with app.app_context():
                 print("Adding password_reset_required column to existing User table...")
                 db.engine.execute('ALTER TABLE user ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE')
                 print("password_reset_required column added successfully")
+        
+        # Check if we need to add the country_code column to tournament_team table
+        if 'tournament_team' in existing_tables:
+            team_columns = [col['name'] for col in inspector.get_columns('tournament_team')]
+            if 'country_code' not in team_columns:
+                print("Adding country_code column to existing TournamentTeam table...")
+                db.engine.execute('ALTER TABLE tournament_team ADD COLUMN country_code VARCHAR(2)')
+                print("country_code column added successfully")
+                
+                # Update existing teams with country codes
+                teams_to_update = [
+                    ('Brazil', 'br'), ('USA', 'us'), ('Poland', 'pl'), ('Italy', 'it'),
+                    ('Serbia', 'rs'), ('Turkey', 'tr'), ('Japan', 'jp'), ('China', 'cn'),
+                    ('Netherlands', 'nl'), ('Dominican Republic', 'do'), ('France', 'fr'),
+                    ('Germany', 'de'), ('Thailand', 'th'), ('Belgium', 'be'), ('Canada', 'ca'),
+                    ('Bulgaria', 'bg'), ('Argentina', 'ar'), ('Slovenia', 'si'),
+                    ('Czech Republic', 'cz'), ('Puerto Rico', 'pr'), ('Ukraine', 'ua'),
+                    ('Russia', 'ru'), ('South Korea', 'kr'), ('Croatia', 'hr')
+                ]
+                
+                for team_name, country_code in teams_to_update:
+                    try:
+                        db.engine.execute(
+                            'UPDATE tournament_team SET country_code = :code WHERE name = :name',
+                            {'code': country_code, 'name': team_name}
+                        )
+                    except:
+                        pass  # Continue if team doesn't exist
+                print("Updated country codes for existing teams")
             
     except Exception as e:
         print(f"Database initialization error: {e}")
