@@ -1,38 +1,66 @@
 # Safe Deployment Guide for Render.com
 
-## 🚀 Deploying Changes Without Losing Data
+## 🛠️ First-Time Setup (Required)
 
-### **Method 1: Automatic Migration (Recommended)**
+**IMPORTANT:** To prevent losing your admin user on each deployment, you need to use a persistent database instead of SQLite.
 
-The app now handles database migrations automatically on startup. Simply:
+### **Step 1: Create PostgreSQL Database on Render**
+
+1. **Go to Render Dashboard** → Create → PostgreSQL
+2. **Database Name:** `volleyball-predictions-db`
+3. **User:** Choose a username (e.g., `volleyball_admin`)
+4. **Region:** Same as your web service
+5. **Plan:** Free tier is sufficient
+6. **Click "Create Database"**
+
+### **Step 2: Connect Database to Your Web Service**
+
+1. **Go to your Web Service** → Environment
+2. **Add Environment Variable:**
+   - **Key:** `DATABASE_URL`
+   - **Value:** Copy the "External Database URL" from your PostgreSQL service
+3. **Click "Save Changes"**
+
+### **Step 3: Deploy with Database Support**
 
 1. **Push your changes to GitHub:**
    ```bash
    git add .
-   git commit -m "Add tournament predictions and password reset features"
+   git commit -m "Add PostgreSQL support and fix admin persistence"
    git push origin main
    ```
 
 2. **Render will automatically deploy** and the app will:
-   - ✅ Keep all existing tables and data
-   - ✅ Create new tournament tables if missing  
-   - ✅ Add password_reset_required column if missing
-   - ✅ Preserve all user accounts, games, and predictions
+   - ✅ Use persistent PostgreSQL database
+   - ✅ Keep all data between deployments
+   - ✅ Preserve admin user permanently
+   - ✅ Create new tournament tables if missing
 
-### **Method 2: Manual Migration (If Needed)**
+## 🚀 Future Deployments
 
-If automatic migration fails, you can run the migration script manually:
+After the initial setup, all future deployments will preserve your data:
 
-1. **After deployment, access Render shell:**
+1. **Push your changes to GitHub:**
+   ```bash
+   git add .
+   git commit -m "Your changes description"
+   git push origin main
+   ```
+
+2. **Render will automatically deploy** and maintain:
+   - ✅ All user accounts (including admin)
+   - ✅ All games and predictions
+   - ✅ Tournament configurations
+   - ✅ Complete leaderboard history
+
+### **Manual Migration (If Needed)**
+
+If you need to run migrations manually:
+
+1. **Access Render shell:**
    - Go to your Render service dashboard
    - Click "Shell" tab
    - Run: `python migrate_db.py`
-
-2. **Or update via local script:**
-   ```bash
-   # If you have database access
-   python migrate_db.py
-   ```
 
 ## 📊 What Gets Preserved
 
