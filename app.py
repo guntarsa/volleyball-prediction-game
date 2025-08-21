@@ -715,42 +715,65 @@ def delete_game(game_id):
 @login_required
 @admin_required
 def bulk_delete_games():
-    game_ids = request.form.getlist('game_ids')
-    
-    if not game_ids:
-        flash('No games selected for deletion', 'error')
-        return redirect(url_for('admin'))
-    
-    deleted_count = 0
-    skipped_count = 0
-    
-    for game_id in game_ids:
-        try:
-            game = Game.query.get(int(game_id))
-            if not game:
-                continue
+    try:
+        game_ids = request.form.getlist('game_ids')
+        print(f"Bulk delete request received for game IDs: {game_ids}")  # Debug log
+        
+        if not game_ids:
+            flash('No games selected for deletion', 'error')
+            return redirect(url_for('admin'))
+        
+        deleted_count = 0
+        skipped_count = 0
+        errors = []
+        
+        for game_id in game_ids:
+            try:
+                game = Game.query.get(int(game_id))
+                if not game:
+                    errors.append(f"Game {game_id} not found")
+                    continue
+                    
+                # Check if game has predictions
+                prediction_count = Prediction.query.filter_by(game_id=game_id).count()
                 
-            # Check if game has predictions
-            prediction_count = Prediction.query.filter_by(game_id=game_id).count()
-            
-            if prediction_count > 0:
-                skipped_count += 1
+                if prediction_count > 0:
+                    skipped_count += 1
+                    print(f"Skipping game {game_id} - has {prediction_count} predictions")  # Debug log
+                    continue
+                
+                # Delete the game
+                db.session.delete(game)
+                deleted_count += 1
+                print(f"Marked game {game_id} for deletion")  # Debug log
+                
+            except Exception as e:
+                error_msg = f"Error processing game {game_id}: {str(e)}"
+                errors.append(error_msg)
+                print(error_msg)  # Debug log
                 continue
+        
+        if deleted_count > 0 or skipped_count > 0:
+            db.session.commit()
+            print(f"Database commit completed. Deleted: {deleted_count}, Skipped: {skipped_count}")  # Debug log
+        
+        if deleted_count > 0:
+            flash(f'Successfully deleted {deleted_count} games', 'success')
+        
+        if skipped_count > 0:
+            flash(f'{skipped_count} games were skipped (they have existing predictions)', 'warning')
+        
+        if errors:
+            flash(f'Errors occurred: {"; ".join(errors)}', 'error')
+        
+        if deleted_count == 0 and skipped_count == 0:
+            flash('No games were deleted', 'info')
             
-            # Delete the game
-            db.session.delete(game)
-            deleted_count += 1
-            
-        except Exception as e:
-            continue
-    
-    db.session.commit()
-    
-    if deleted_count > 0:
-        flash(f'Successfully deleted {deleted_count} games', 'success')
-    
-    if skipped_count > 0:
-        flash(f'{skipped_count} games were skipped (they have existing predictions)', 'warning')
+    except Exception as e:
+        db.session.rollback()
+        error_msg = f"Bulk delete failed: {str(e)}"
+        print(error_msg)  # Debug log
+        flash(error_msg, 'error')
     
     return redirect(url_for('admin'))
 

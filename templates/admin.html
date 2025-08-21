@@ -338,6 +338,10 @@ Dominican Republic,do
                     <span id="selectedCount" class="text-muted ms-2"></span>
                 </div>
                 
+                <!-- Hidden form for bulk delete -->
+                <form id="bulkDeleteForm" method="POST" action="{{ url_for('bulk_delete_games') }}" style="display: none;">
+                </form>
+                
                 <!-- Desktop Table View -->
                 <div class="table-responsive d-none d-lg-block">
                     <table class="table table-hover">
@@ -430,6 +434,16 @@ Dominican Republic,do
                 
                 <!-- Mobile Card View -->
                 <div class="d-lg-none">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="selectAllMobile" onchange="toggleAllGames()">
+                                <label class="form-check-label fw-bold" for="selectAllMobile">
+                                    Select All Games
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                     {% for game in games %}
                     <div class="card mb-3 mobile-game-card">
                         <div class="card-body">
@@ -703,11 +717,25 @@ function confirmDelete(gameId, team1, team2) {
 }
 
 function toggleAllGames() {
+    // Handle both desktop and mobile select all checkboxes
     const selectAll = document.getElementById('selectAll');
+    const selectAllMobile = document.getElementById('selectAllMobile');
     const checkboxes = document.querySelectorAll('.game-checkbox');
     
+    // Determine which select all was clicked
+    let isChecked = false;
+    if (event && event.target) {
+        isChecked = event.target.checked;
+        // Sync both select all checkboxes
+        if (selectAll) selectAll.checked = isChecked;
+        if (selectAllMobile) selectAllMobile.checked = isChecked;
+    } else {
+        // Fallback: use desktop checkbox state
+        isChecked = selectAll ? selectAll.checked : false;
+    }
+    
     checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAll.checked;
+        checkbox.checked = isChecked;
     });
     
     updateBulkDeleteButton();
@@ -736,14 +764,15 @@ function bulkDeleteGames() {
     }
     
     const gameCount = checkboxes.length;
-    if (!confirm(`Are you sure you want to delete ${gameCount} selected game(s)? This action cannot be undone.`)) {
+    const gameIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (!confirm(`Are you sure you want to delete ${gameCount} selected game(s)? This action cannot be undone.\n\nGame IDs: ${gameIds.join(', ')}`)) {
         return;
     }
     
-    // Create a form and submit
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/bulk_delete_games';
+    // Use the existing form and clear any previous inputs
+    const form = document.getElementById('bulkDeleteForm');
+    form.innerHTML = ''; // Clear any existing inputs
     
     checkboxes.forEach(checkbox => {
         const input = document.createElement('input');
@@ -753,7 +782,11 @@ function bulkDeleteGames() {
         form.appendChild(input);
     });
     
-    document.body.appendChild(form);
+    // Debug: log form data before submission
+    console.log('Submitting bulk delete for games:', gameIds);
+    console.log('Form action:', form.action);
+    console.log('Form method:', form.method);
+    
     form.submit();
 }
 
