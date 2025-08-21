@@ -159,7 +159,7 @@
             <div class="collapse show" id="dateContent_{{ date_str }}">
                 <div class="card-body p-0">
                     {% for game in date_games %}
-                    <div class="game-card border-bottom {% if not loop.last %}mb-3{% endif %}">
+                    <div class="game-card border-bottom {% if not loop.last %}mb-3{% endif %}" id="game_{{ game.id }}">
                         {% if game.is_finished %}
                         <!-- Finished Game Display -->
                         <div class="p-3 bg-light rounded mb-3">
@@ -382,6 +382,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add volleyball scoring validation
         addVolleyballValidation(form);
     });
+    
+    // Handle URL anchor to scroll to specific game
+    handleGameAnchor();
 });
 
 function loadUserPrediction(gameId) {
@@ -835,6 +838,53 @@ function updateFilterButtonStates(activeFilter) {
                 hideAllBtn.classList.add('btn-outline-secondary');
                 upcomingBtn.classList.add('btn-outline-success');
             }
+    }
+}
+
+function handleGameAnchor() {
+    // Check if there's a hash in the URL (e.g., #game_123)
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#game_')) {
+        const gameId = hash.replace('#game_', '');
+        const gameElement = document.getElementById(`game_${gameId}`);
+        
+        if (gameElement) {
+            // First, make sure the date section containing this game is visible
+            const dateSection = gameElement.closest('.date-section');
+            if (dateSection) {
+                dateSection.style.display = 'block';
+                
+                // Expand the date content if it's collapsed
+                const dateStr = dateSection.id.replace('dateSection_', '');
+                const dateContent = document.getElementById(`dateContent_${dateStr}`);
+                const toggleIcon = document.getElementById(`toggleIcon_${dateStr}`);
+                
+                if (dateContent && !dateContent.classList.contains('show')) {
+                    dateContent.classList.add('show');
+                    if (toggleIcon) {
+                        toggleIcon.classList.remove('fa-chevron-right');
+                        toggleIcon.classList.add('fa-chevron-down');
+                    }
+                }
+            }
+            
+            // Scroll to the game with a small delay to ensure DOM is ready
+            setTimeout(() => {
+                gameElement.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+                
+                // Add a subtle highlight effect
+                gameElement.style.backgroundColor = '#fff3cd';
+                gameElement.style.transition = 'background-color 0.5s ease';
+                
+                // Remove highlight after 2 seconds
+                setTimeout(() => {
+                    gameElement.style.backgroundColor = '';
+                }, 2000);
+            }, 300);
+        }
     }
 }
 </script>

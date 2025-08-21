@@ -390,7 +390,7 @@ def make_prediction():
     
     if not all([game_id, team1_score, team2_score]):
         flash('Please fill in all fields', 'error')
-        return redirect(url_for('predictions'))
+        return redirect(url_for('predictions', anchor=f'game_{game_id}'))
     
     try:
         # Convert all form data to appropriate types
@@ -411,7 +411,7 @@ def make_prediction():
             flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
         else:
             flash('Please enter valid values', 'error')
-        return redirect(url_for('predictions'))
+        return redirect(url_for('predictions', anchor=f'game_{game_id}'))
     
     game = Game.query.get(game_id)
     if not game:
@@ -421,7 +421,7 @@ def make_prediction():
     # Check prediction deadline
     if not game.is_prediction_open():
         flash('Prediction deadline has passed for this game', 'error')
-        return redirect(url_for('predictions'))
+        return redirect(url_for('predictions', anchor=f'game_{game_id}'))
     
     # Check if prediction already exists
     existing = Prediction.query.filter_by(user_id=current_user.id, game_id=game_id).first()
@@ -442,7 +442,7 @@ def make_prediction():
     
     db.session.commit()
     flash('Prediction saved!', 'success')
-    return redirect(url_for('predictions'))
+    return redirect(url_for('predictions', anchor=f'game_{game_id}'))
 
 @app.route('/admin')
 @login_required
