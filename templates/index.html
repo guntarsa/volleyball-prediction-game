@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <h1 class="page-title">Women's Volleyball World Championship Predictions</h1>
+        
+        <div class="card">
+            <div class="card-body p-4">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-trophy text-warning"></i>
+                    Tournament Overview
+                </h2>
+                
+                <p class="lead text-center">Welcome to our friendly prediction game for the Women's Volleyball World Championship!</p>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-gamepad text-primary"></i>
+                                    How to Play
+                                </h5>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-check text-success me-2"></i>Predict match results with exact scores</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Earn points based on accuracy</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Compete with friends on leaderboard</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Track your prediction statistics</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-star text-warning"></i>
+                                    Scoring System
+                                </h5>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-medal text-warning me-2"></i><strong>6 points:</strong> Perfect prediction (exact score)</li>
+                                    <li><i class="fas fa-medal text-info me-2"></i><strong>4 points:</strong> Correct winner, off by 1 set</li>
+                                    <li><i class="fas fa-medal text-primary me-2"></i><strong>2 points:</strong> Correct winner only</li>
+                                    <li><i class="fas fa-medal text-secondary me-2"></i><strong>1 point:</strong> Correct total sets, wrong winner</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('predictions') }}" class="btn btn-primary btn-lg me-3">
+                        <i class="fas fa-play"></i> Start Predicting
+                    </a>
+                    <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-trophy"></i> View Leaderboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle text-info"></i>
+                    Getting Started
+                </h5>
+                <p class="card-text">
+                    First time here? Add your name to the leaderboard and start making predictions!
+                    Results are updated after each match, and points are calculated automatically.
+                </p>
+                <small class="text-muted">
+                    <i class="fas fa-users"></i>
+                    Invite your friends to join and see who's the best predictor!
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

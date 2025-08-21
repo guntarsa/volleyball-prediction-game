@@ -1,0 +1,270 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+header {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+}
+
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.nav-links {
+    display: flex;
+    list-style: none;
+    gap: 2rem;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #333;
+    font-weight: 500;
+    transition: color 0.3s;
+    cursor: pointer;
+}
+
+.nav-links a:hover {
+    color: #667eea;
+}
+
+main {
+    margin-top: 80px;
+    padding: 2rem 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.section {
+    display: none;
+    min-height: calc(100vh - 80px);
+}
+
+.section.active {
+    display: block;
+}
+
+h1 {
+    text-align: center;
+    color: white;
+    margin-bottom: 2rem;
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.tournament-info {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    margin-bottom: 2rem;
+}
+
+.rules ul {
+    list-style-position: inside;
+    margin: 1rem 0;
+}
+
+.rules li {
+    margin: 0.5rem 0;
+    padding-left: 1rem;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    display: block;
+    margin: 2rem auto 0;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.match-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s;
+}
+
+.match-card:hover {
+    transform: translateY(-2px);
+}
+
+.match-header {
+    text-align: center;
+    margin-bottom: 1rem;
+    color: #667eea;
+    font-weight: bold;
+}
+
+.match-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.team {
+    text-align: center;
+    flex: 1;
+}
+
+.team-name {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.vs {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #764ba2;
+    margin: 0 1rem;
+}
+
+.prediction-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.team-btn {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    flex: 1;
+    max-width: 150px;
+}
+
+.team-btn:hover {
+    background: #e9ecef;
+}
+
+.team-btn.selected {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.player-form {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.player-form input {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-right: 1rem;
+    font-size: 1rem;
+}
+
+.player-form button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.leaderboard-table {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.leaderboard-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.leaderboard-table th {
+    background: #667eea;
+    color: white;
+    font-weight: bold;
+}
+
+.leaderboard-table tr:hover {
+    background: #f8f9fa;
+}
+
+@media (max-width: 768px) {
+    .nav-links {
+        gap: 1rem;
+    }
+    
+    .container {
+        padding: 0 1rem;
+    }
+    
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .match-teams {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .vs {
+        margin: 0;
+    }
+    
+    .prediction-buttons {
+        flex-direction: column;
+    }
+}

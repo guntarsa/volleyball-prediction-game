@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Leaderboard</h1>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-plus"></i>
+                    Add New Player
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_user') }}" class="row g-3">
+                    <div class="col-md-8">
+                        <input type="text" name="name" class="form-control" placeholder="Enter your name" maxlength="50" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-plus"></i> Join Game
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if users %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-trophy"></i>
+                    Current Rankings
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-primary">
+                            <tr>
+                                <th scope="col" class="text-center">Rank</th>
+                                <th scope="col">Player</th>
+                                <th scope="col" class="text-center">Total Score</th>
+                                <th scope="col" class="text-center">Predictions</th>
+                                <th scope="col" class="text-center">Correct</th>
+                                <th scope="col" class="text-center">Accuracy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td class="text-center">
+                                    {% if loop.index == 1 %}
+                                        <i class="fas fa-crown text-warning"></i>
+                                    {% elif loop.index == 2 %}
+                                        <i class="fas fa-medal text-secondary"></i>
+                                    {% elif loop.index == 3 %}
+                                        <i class="fas fa-medal text-warning"></i>
+                                    {% else %}
+                                        {{ loop.index }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ user.name }}</strong>
+                                    {% if loop.index == 1 %}
+                                        <span class="badge bg-warning text-dark ms-2">Leader</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary fs-6">{{ user.total_score }}</span>
+                                </td>
+                                <td class="text-center">{{ user.total_predictions }}</td>
+                                <td class="text-center">{{ user.correct_predictions }}</td>
+                                <td class="text-center">
+                                    {% if user.accuracy >= 70 %}
+                                        <span class="badge bg-success">{{ user.accuracy }}%</span>
+                                    {% elif user.accuracy >= 50 %}
+                                        <span class="badge bg-warning text-dark">{{ user.accuracy }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ user.accuracy }}%</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">
+                    <i class="fas fa-chart-line"></i>
+                    Highest Score
+                </h5>
+                <h3 class="text-primary">{{ users[0].total_score if users else 0 }}</h3>
+                <p class="card-text">{{ users[0].name if users else 'No players yet' }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="fas fa-bullseye"></i>
+                    Best Accuracy
+                </h5>
+                {% set best_accuracy = users | selectattr('total_predictions', '>', 0) | sort(attribute='accuracy', reverse=true) | first %}
+                <h3 class="text-success">{{ best_accuracy.accuracy if best_accuracy else 0 }}%</h3>
+                <p class="card-text">{{ best_accuracy.name if best_accuracy else 'No predictions yet' }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="fas fa-users"></i>
+                    Total Players
+                </h5>
+                <h3 class="text-info">{{ users | length }}</h3>
+                <p class="card-text">Competing in the league</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="alert alert-info text-center">
+    <h4><i class="fas fa-users"></i> No Players Yet</h4>
+    <p>Be the first to join the prediction game!</p>
+</div>
+{% endif %}
+{% endblock %}

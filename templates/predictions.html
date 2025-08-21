@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Predictions - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Make Your Predictions</h1>
+
+{% if not users %}
+<div class="alert alert-warning text-center">
+    <h4><i class="fas fa-exclamation-triangle"></i> No Users Found</h4>
+    <p>You need to add users first before making predictions.</p>
+    <a href="{{ url_for('leaderboard') }}" class="btn btn-primary">Add Users</a>
+</div>
+{% elif not games %}
+<div class="alert alert-info text-center">
+    <h4><i class="fas fa-calendar-times"></i> No Upcoming Games</h4>
+    <p>There are no games available for predictions at the moment.</p>
+    <a href="{{ url_for('admin') }}" class="btn btn-primary">Admin Panel</a>
+</div>
+{% else %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-alt"></i>
+                    Upcoming Matches
+                </h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for game in games %}
+<div class="card match-card">
+    <div class="card-header text-center">
+        <h6 class="mb-1 text-primary">{{ game.round_name }}</h6>
+        <small class="text-muted">
+            <i class="fas fa-clock"></i>
+            {{ game.game_date.strftime('%B %d, %Y at %H:%M') }}
+        </small>
+    </div>
+    <div class="card-body">
+        <div class="row align-items-center mb-3">
+            <div class="col-md-4 text-center">
+                <h5 class="team-name">{{ game.team1 }}</h5>
+            </div>
+            <div class="col-md-4 text-center">
+                <span class="vs-text h4 text-muted">VS</span>
+            </div>
+            <div class="col-md-4 text-center">
+                <h5 class="team-name">{{ game.team2 }}</h5>
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('make_prediction') }}" class="prediction-form">
+            <input type="hidden" name="game_id" value="{{ game.id }}">
+            
+            <div class="row align-items-end">
+                <div class="col-md-3">
+                    <label for="user_select_{{ game.id }}" class="form-label">Select User:</label>
+                    <select name="user_id" id="user_select_{{ game.id }}" class="form-select" required onchange="loadPrediction({{ game.id }}, this.value)">
+                        <option value="">Choose user...</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    <label for="team1_score_{{ game.id }}" class="form-label">{{ game.team1 }} Score:</label>
+                    <input type="number" name="team1_score" id="team1_score_{{ game.id }}" class="form-control score-input" min="0" max="5" required>
+                    <input type="hidden" name="team1" value="{{ game.team1 }}">
+                </div>
+                
+                <div class="col-md-3 text-center">
+                    <label for="team2_score_{{ game.id }}" class="form-label">{{ game.team2 }} Score:</label>
+                    <input type="number" name="team2_score" id="team2_score_{{ game.id }}" class="form-control score-input" min="0" max="5" required>
+                    <input type="hidden" name="team2" value="{{ game.team2 }}">
+                </div>
+                
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save"></i> Save Prediction
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadPrediction(gameId, userId) {
+    if (!userId) return;
+    
+    fetch(`/get_prediction/${userId}/${gameId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById(`team1_score_${gameId}`).value = data.team1_score || '';
+            document.getElementById(`team2_score_${gameId}`).value = data.team2_score || '';
+        })
+        .catch(error => console.error('Error loading prediction:', error));
+}
+
+// Auto-save predictions when scores change
+document.querySelectorAll('.prediction-form').forEach(form => {
+    const inputs = form.querySelectorAll('input[type="number"]');
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            const userSelect = form.querySelector('select[name="user_id"]');
+            if (userSelect.value && this.value !== '') {
+                // Optional: auto-save on change
+                // form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

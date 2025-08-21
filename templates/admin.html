@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Admin Panel</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-upload"></i>
+                    Import Games from CSV
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('upload_games') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select CSV File:</label>
+                        <input type="file" name="file" id="file" class="form-control" accept=".csv" required>
+                        <div class="form-text">
+                            CSV should have columns: team1, team2, date, time, round
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-file-import"></i> Import Games
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    CSV Format Example
+                </h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded"><code>team1,team2,date,time,round
+Brazil,Italy,2024-09-15,14:00,Quarter Final 1
+USA,Poland,2024-09-15,17:00,Quarter Final 2
+Serbia,Turkey,2024-09-16,14:00,Quarter Final 3</code></pre>
+                <small class="text-muted">
+                    <i class="fas fa-calendar"></i> Date format: YYYY-MM-DD<br>
+                    <i class="fas fa-clock"></i> Time format: HH:MM (24-hour)
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-gamepad"></i>
+                    Manage Games
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if games %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Round</th>
+                                <th>Teams</th>
+                                <th>Result</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in games %}
+                            <tr>
+                                <td>
+                                    <small>{{ game.game_date.strftime('%Y-%m-%d') }}</small><br>
+                                    <strong>{{ game.game_date.strftime('%H:%M') }}</strong>
+                                </td>
+                                <td>{{ game.round_name }}</td>
+                                <td>
+                                    <strong>{{ game.team1 }}</strong> vs <strong>{{ game.team2 }}</strong>
+                                </td>
+                                <td>
+                                    {% if game.is_finished %}
+                                        <span class="badge bg-success">{{ game.team1_score }} - {{ game.team2_score }}</span>
+                                    {% else %}
+                                        <span class="text-muted">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if game.is_finished %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Finished
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-clock"></i> Upcoming
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not game.is_finished %}
+                                    <button class="btn btn-sm btn-primary" onclick="showUpdateModal({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}')">
+                                        <i class="fas fa-edit"></i> Update Result
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-secondary" onclick="showUpdateModal({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}', {{ game.team1_score }}, {{ game.team2_score }})">
+                                        <i class="fas fa-edit"></i> Edit Result
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info text-center">
+                    <h4><i class="fas fa-calendar-times"></i> No Games Found</h4>
+                    <p>Import games using the CSV upload feature above.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Result Modal -->
+<div class="modal fade" id="updateResultModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Game Result</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('update_result') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="game_id" id="modalGameId">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label" id="team1Label">Team 1 Score:</label>
+                            <input type="number" name="team1_score" id="modalTeam1Score" class="form-control" min="0" max="5" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" id="team2Label">Team 2 Score:</label>
+                            <input type="number" name="team2_score" id="modalTeam2Score" class="form-control" min="0" max="5" required>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="fas fa-info-circle"></i>
+                            Updating the result will automatically recalculate points for all predictions.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Result</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showUpdateModal(gameId, team1, team2, team1Score = '', team2Score = '') {
+    document.getElementById('modalGameId').value = gameId;
+    document.getElementById('team1Label').textContent = team1 + ' Score:';
+    document.getElementById('team2Label').textContent = team2 + ' Score:';
+    document.getElementById('modalTeam1Score').value = team1Score;
+    document.getElementById('modalTeam2Score').value = team2Score;
+    
+    new bootstrap.Modal(document.getElementById('updateResultModal')).show();
+}
+</script>
+{% endblock %}
