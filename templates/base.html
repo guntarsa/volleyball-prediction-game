@@ -106,7 +106,10 @@
                     </li>
                     {% if current_user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('predictions') }}">Predictions</a>
+                            <a class="nav-link" href="{{ url_for('predictions') }}">Match Predictions</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('tournament_predictions') }}">Tournament Predictions</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('leaderboard') }}">Leaderboard</a>

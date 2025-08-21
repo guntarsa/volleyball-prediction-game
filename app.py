@@ -30,6 +30,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_verified = db.Column(db.Boolean, default=True)  # Set to True for simplicity
+    password_reset_required = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     predictions = db.relationship('Prediction', backref='user', lazy=True, cascade='all, delete-orphan')
     
@@ -40,7 +41,9 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
     
     def get_total_score(self):
-        return sum([p.points for p in self.predictions if p.points is not None])
+        match_points = sum([p.points for p in self.predictions if p.points is not None])
+        tournament_points = self.tournament_prediction.points_earned if self.tournament_prediction else 0
+        return match_points + tournament_points
     
     def get_total_predictions(self):
         return len([p for p in self.predictions if p.team1_score is not None])
@@ -83,6 +86,35 @@ class Prediction(db.Model):
     
     __table_args__ = (db.UniqueConstraint('user_id', 'game_id'),)
 
+class TournamentPrediction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    first_place = db.Column(db.String(100), nullable=True)  # Winner prediction
+    second_place = db.Column(db.String(100), nullable=True)  # Runner-up prediction  
+    third_place = db.Column(db.String(100), nullable=True)  # Bronze medal prediction
+    points_earned = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('tournament_prediction', uselist=False))
+    
+    __table_args__ = (db.UniqueConstraint('user_id'),)
+
+class TournamentConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    prediction_deadline = db.Column(db.DateTime, nullable=False)
+    first_place_result = db.Column(db.String(100), nullable=True)
+    second_place_result = db.Column(db.String(100), nullable=True)  
+    third_place_result = db.Column(db.String(100), nullable=True)
+    is_finalized = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def is_prediction_open(self):
+        return datetime.now(timezone.utc) < self.prediction_deadline.replace(tzinfo=timezone.utc)
+    
+    def are_results_available(self):
+        return self.is_finalized and all([self.first_place_result, self.second_place_result, self.third_place_result])
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -95,6 +127,16 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
+
+@app.before_request
+def check_password_reset():
+    # Skip password reset check for certain routes
+    exempt_routes = ['login', 'logout', 'register', 'change_password', 'static']
+    
+    if (current_user.is_authenticated and 
+        current_user.password_reset_required and 
+        request.endpoint not in exempt_routes):
+        return redirect(url_for('change_password'))
 
 def calculate_points(prediction, game):
     """Calculate points based on the scoring system"""
@@ -131,6 +173,25 @@ def calculate_points(prediction, game):
         return 1  # Wrong winner but correct total sets
     else:
         return 0  # Completely wrong
+
+def calculate_tournament_points(prediction, tournament_config):
+    """Calculate points for tournament predictions"""
+    if not tournament_config.are_results_available():
+        return 0
+    
+    points = 0
+    
+    # Check first place (winner) - 50 points
+    if prediction.first_place == tournament_config.first_place_result:
+        points += 50
+    
+    # Check medalists (2nd and 3rd place) - 25 points each
+    if prediction.second_place == tournament_config.second_place_result:
+        points += 25
+    if prediction.third_place == tournament_config.third_place_result:
+        points += 25
+    
+    return points
 
 # Routes
 @app.route('/')
@@ -258,8 +319,17 @@ def make_prediction():
         team2_score = int(team2_score)
         if team1_score < 0 or team2_score < 0:
             raise ValueError("Scores cannot be negative")
-    except ValueError:
-        flash('Please enter valid scores', 'error')
+        
+        # Volleyball scoring validation: one team must win 3 sets, other 0-2
+        if not ((team1_score == 3 and team2_score in [0, 1, 2]) or 
+                (team2_score == 3 and team1_score in [0, 1, 2])):
+            raise ValueError("Invalid volleyball score")
+            
+    except ValueError as e:
+        if "Invalid volleyball score" in str(e):
+            flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
+        else:
+            flash('Please enter valid scores', 'error')
         return redirect(url_for('predictions'))
     
     game = Game.query.get(game_id)
@@ -298,7 +368,23 @@ def make_prediction():
 @admin_required
 def admin():
     games = Game.query.order_by(Game.game_date).all()
-    return render_template('admin.html', games=games)
+    users = User.query.order_by(User.created_at).all()
+    tournament_config = TournamentConfig.query.first()
+    tournament_predictions = TournamentPrediction.query.join(User).all()
+    
+    # Get all teams for tournament results
+    teams = set()
+    for game in games:
+        teams.add(game.team1)
+        teams.add(game.team2)
+    teams = sorted(list(teams))
+    
+    return render_template('admin.html', 
+                         games=games, 
+                         users=users, 
+                         tournament_config=tournament_config,
+                         tournament_predictions=tournament_predictions,
+                         teams=teams)
 
 @app.route('/upload_games', methods=['POST'])
 @login_required
@@ -377,8 +463,17 @@ def update_result():
         team2_score = int(team2_score)
         if team1_score < 0 or team2_score < 0:
             raise ValueError("Scores cannot be negative")
-    except ValueError:
-        flash('Please enter valid scores', 'error')
+        
+        # Volleyball scoring validation: one team must win 3 sets, other 0-2
+        if not ((team1_score == 3 and team2_score in [0, 1, 2]) or 
+                (team2_score == 3 and team1_score in [0, 1, 2])):
+            raise ValueError("Invalid volleyball score")
+            
+    except ValueError as e:
+        if "Invalid volleyball score" in str(e):
+            flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
+        else:
+            flash('Please enter valid scores', 'error')
         return redirect(url_for('admin'))
     
     game = Game.query.get(game_id)
@@ -398,6 +493,257 @@ def update_result():
         flash('Game not found', 'error')
     
     return redirect(url_for('admin'))
+
+@app.route('/delete_game/<int:game_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_game(game_id):
+    game = Game.query.get(game_id)
+    if not game:
+        flash('Game not found', 'error')
+        return redirect(url_for('admin'))
+    
+    # Check if game has predictions
+    prediction_count = Prediction.query.filter_by(game_id=game_id).count()
+    
+    if prediction_count > 0:
+        flash(f'Cannot delete game: {prediction_count} predictions exist for this game', 'error')
+        return redirect(url_for('admin'))
+    
+    # Delete the game
+    db.session.delete(game)
+    db.session.commit()
+    
+    flash(f'Game "{game.team1} vs {game.team2}" has been deleted', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/bulk_delete_games', methods=['POST'])
+@login_required
+@admin_required
+def bulk_delete_games():
+    game_ids = request.form.getlist('game_ids')
+    
+    if not game_ids:
+        flash('No games selected for deletion', 'error')
+        return redirect(url_for('admin'))
+    
+    deleted_count = 0
+    skipped_count = 0
+    
+    for game_id in game_ids:
+        try:
+            game = Game.query.get(int(game_id))
+            if not game:
+                continue
+                
+            # Check if game has predictions
+            prediction_count = Prediction.query.filter_by(game_id=game_id).count()
+            
+            if prediction_count > 0:
+                skipped_count += 1
+                continue
+            
+            # Delete the game
+            db.session.delete(game)
+            deleted_count += 1
+            
+        except Exception as e:
+            continue
+    
+    db.session.commit()
+    
+    if deleted_count > 0:
+        flash(f'Successfully deleted {deleted_count} games', 'success')
+    
+    if skipped_count > 0:
+        flash(f'{skipped_count} games were skipped (they have existing predictions)', 'warning')
+    
+    return redirect(url_for('admin'))
+
+@app.route('/admin/reset-user-password/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def reset_user_password(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('admin'))
+    
+    if user.is_admin:
+        flash('Cannot reset admin password', 'error')
+        return redirect(url_for('admin'))
+    
+    # Set password reset flag
+    user.password_reset_required = True
+    db.session.commit()
+    
+    flash(f'Password reset initiated for {user.name}. They will be prompted to change their password on next login.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/tournament-config', methods=['POST'])
+@login_required
+@admin_required
+def set_tournament_config():
+    deadline_str = request.form.get('prediction_deadline')
+    
+    if not deadline_str:
+        flash('Please provide a prediction deadline.', 'error')
+        return redirect(url_for('admin'))
+    
+    try:
+        deadline = datetime.strptime(deadline_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        flash('Invalid date format.', 'error')
+        return redirect(url_for('admin'))
+    
+    # Create or update tournament config
+    tournament_config = TournamentConfig.query.first()
+    if tournament_config:
+        tournament_config.prediction_deadline = deadline
+    else:
+        tournament_config = TournamentConfig(prediction_deadline=deadline)
+        db.session.add(tournament_config)
+    
+    db.session.commit()
+    flash('Tournament prediction deadline set successfully!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/tournament-results', methods=['POST'])
+@login_required
+@admin_required
+def set_tournament_results():
+    first_place = request.form.get('first_place_result')
+    second_place = request.form.get('second_place_result')
+    third_place = request.form.get('third_place_result')
+    
+    if not all([first_place, second_place, third_place]):
+        flash('Please select all three positions.', 'error')
+        return redirect(url_for('admin'))
+    
+    if len(set([first_place, second_place, third_place])) != 3:
+        flash('Please select different teams for each position.', 'error')
+        return redirect(url_for('admin'))
+    
+    tournament_config = TournamentConfig.query.first()
+    if not tournament_config:
+        flash('Tournament configuration not found. Please set deadline first.', 'error')
+        return redirect(url_for('admin'))
+    
+    # Update results
+    tournament_config.first_place_result = first_place
+    tournament_config.second_place_result = second_place
+    tournament_config.third_place_result = third_place
+    tournament_config.is_finalized = True
+    
+    # Recalculate points for all tournament predictions
+    predictions = TournamentPrediction.query.all()
+    for prediction in predictions:
+        prediction.points_earned = calculate_tournament_points(prediction, tournament_config)
+    
+    db.session.commit()
+    flash(f'Tournament results finalized! Points calculated for {len(predictions)} predictions.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if not current_user.password_reset_required:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        if not new_password or not confirm_password:
+            flash('All fields are required.', 'error')
+            return render_template('change_password.html', force_change=True)
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('change_password.html', force_change=True)
+        
+        if len(new_password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('change_password.html', force_change=True)
+        
+        # Update password and clear reset flag
+        current_user.set_password(new_password)
+        current_user.password_reset_required = False
+        db.session.commit()
+        
+        flash('Password changed successfully! You can now access all features.', 'success')
+        return redirect(url_for('index'))
+    
+    return render_template('change_password.html', force_change=True)
+
+@app.route('/tournament-predictions', methods=['GET', 'POST'])
+@login_required
+def tournament_predictions():
+    # Get or create tournament config
+    tournament_config = TournamentConfig.query.first()
+    if not tournament_config:
+        flash('Tournament predictions are not yet available. Please contact admin.', 'warning')
+        return redirect(url_for('index'))
+    
+    # Get all teams from games for dropdown options
+    teams = set()
+    games = Game.query.all()
+    for game in games:
+        teams.add(game.team1)
+        teams.add(game.team2)
+    teams = sorted(list(teams))
+    
+    # Get user's existing prediction
+    user_prediction = TournamentPrediction.query.filter_by(user_id=current_user.id).first()
+    
+    if request.method == 'POST':
+        if not tournament_config.is_prediction_open():
+            flash('Tournament prediction deadline has passed.', 'error')
+            return redirect(url_for('tournament_predictions'))
+        
+        first_place = request.form.get('first_place')
+        second_place = request.form.get('second_place')
+        third_place = request.form.get('third_place')
+        
+        # Validation
+        if not all([first_place, second_place, third_place]):
+            flash('Please select all three positions.', 'error')
+            return render_template('tournament_predictions.html', 
+                                 tournament_config=tournament_config, 
+                                 teams=teams, 
+                                 user_prediction=user_prediction)
+        
+        # Check for duplicate selections
+        if len(set([first_place, second_place, third_place])) != 3:
+            flash('Please select different teams for each position.', 'error')
+            return render_template('tournament_predictions.html', 
+                                 tournament_config=tournament_config, 
+                                 teams=teams, 
+                                 user_prediction=user_prediction)
+        
+        # Create or update prediction
+        if user_prediction:
+            user_prediction.first_place = first_place
+            user_prediction.second_place = second_place
+            user_prediction.third_place = third_place
+            user_prediction.updated_at = datetime.utcnow()
+        else:
+            user_prediction = TournamentPrediction(
+                user_id=current_user.id,
+                first_place=first_place,
+                second_place=second_place,
+                third_place=third_place
+            )
+            db.session.add(user_prediction)
+        
+        db.session.commit()
+        flash('Tournament prediction saved successfully!', 'success')
+        return redirect(url_for('tournament_predictions'))
+    
+    return render_template('tournament_predictions.html', 
+                         tournament_config=tournament_config, 
+                         teams=teams, 
+                         user_prediction=user_prediction)
 
 @app.route('/get_prediction/<int:game_id>')
 @login_required

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}Tournament Predictions - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Tournament Predictions</h1>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header text-center">
+                <h5 class="mb-1">
+                    <i class="fas fa-trophy text-warning"></i>
+                    Predict Tournament Winner & Medalists
+                </h5>
+                {% if tournament_config.is_prediction_open() %}
+                    <small class="text-success">
+                        <i class="fas fa-unlock"></i>
+                        Deadline: {{ tournament_config.prediction_deadline.strftime('%B %d, %Y at %H:%M') }}
+                    </small>
+                {% else %}
+                    <small class="text-danger">
+                        <i class="fas fa-lock"></i>
+                        Predictions Closed
+                    </small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if tournament_config.is_prediction_open() %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Scoring System</h6>
+                        <ul class="mb-0">
+                            <li><strong>50 points</strong> for correctly predicting the tournament winner (1st place)</li>
+                            <li><strong>25 points</strong> for correctly predicting the runner-up (2nd place)</li>
+                            <li><strong>25 points</strong> for correctly predicting the bronze medalist (3rd place)</li>
+                        </ul>
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-warning text-dark">
+                                    <div class="card-header text-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-medal"></i>
+                                            1st Place (Winner)
+                                        </h6>
+                                        <small>50 points</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <select name="first_place" class="form-select" required>
+                                            <option value="">Select winner...</option>
+                                            {% for team in teams %}
+                                            <option value="{{ team }}" 
+                                                    {% if user_prediction and user_prediction.first_place == team %}selected{% endif %}>
+                                                {{ team }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card bg-secondary text-light">
+                                    <div class="card-header text-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-medal"></i>
+                                            2nd Place (Runner-up)
+                                        </h6>
+                                        <small>25 points</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <select name="second_place" class="form-select" required>
+                                            <option value="">Select runner-up...</option>
+                                            {% for team in teams %}
+                                            <option value="{{ team }}"
+                                                    {% if user_prediction and user_prediction.second_place == team %}selected{% endif %}>
+                                                {{ team }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card bg-dark text-light">
+                                    <div class="card-header text-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-medal"></i>
+                                            3rd Place (Bronze)
+                                        </h6>
+                                        <small>25 points</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <select name="third_place" class="form-select" required>
+                                            <option value="">Select bronze medalist...</option>
+                                            {% for team in teams %}
+                                            <option value="{{ team }}"
+                                                    {% if user_prediction and user_prediction.third_place == team %}selected{% endif %}>
+                                                {{ team }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i>
+                                {% if user_prediction %}Update{% else %}Save{% endif %} Tournament Prediction
+                            </button>
+                        </div>
+                    </form>
+                    
+                    {% if user_prediction %}
+                    <div class="alert alert-success mt-4">
+                        <h6><i class="fas fa-check-circle"></i> Your Current Prediction</h6>
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <strong>1st:</strong> {{ user_prediction.first_place }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>2nd:</strong> {{ user_prediction.second_place }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>3rd:</strong> {{ user_prediction.third_place }}
+                            </div>
+                        </div>
+                        <small class="text-muted">Last updated: {{ user_prediction.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                    {% endif %}
+                    
+                {% else %}
+                    <div class="alert alert-warning text-center">
+                        <h5><i class="fas fa-lock"></i> Tournament Predictions Closed</h5>
+                        <p>The deadline for tournament predictions has passed.</p>
+                        
+                        {% if user_prediction %}
+                        <div class="mt-3">
+                            <h6>Your Final Prediction:</h6>
+                            <div class="row text-center">
+                                <div class="col-md-4">
+                                    <div class="card bg-warning text-dark">
+                                        <div class="card-body">
+                                            <h6>1st Place</h6>
+                                            <strong>{{ user_prediction.first_place }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-secondary text-light">
+                                        <div class="card-body">
+                                            <h6>2nd Place</h6>
+                                            <strong>{{ user_prediction.second_place }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-dark text-light">
+                                        <div class="card-body">
+                                            <h6>3rd Place</h6>
+                                            <strong>{{ user_prediction.third_place }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if tournament_config.are_results_available() %}
+                            <div class="mt-3">
+                                <h6>Tournament Results:</h6>
+                                <div class="row text-center">
+                                    <div class="col-md-4">
+                                        <strong>Winner:</strong> {{ tournament_config.first_place_result }}
+                                        {% if user_prediction.first_place == tournament_config.first_place_result %}
+                                            <span class="badge bg-success ms-2">+50 pts</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Runner-up:</strong> {{ tournament_config.second_place_result }}
+                                        {% if user_prediction.second_place == tournament_config.second_place_result %}
+                                            <span class="badge bg-success ms-2">+25 pts</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Bronze:</strong> {{ tournament_config.third_place_result }}
+                                        {% if user_prediction.third_place == tournament_config.third_place_result %}
+                                            <span class="badge bg-success ms-2">+25 pts</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="badge bg-primary fs-6">
+                                        Total Tournament Points: {{ user_prediction.points_earned }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted">You did not make a tournament prediction.</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if tournament_config.are_results_available() %}
+        <div class="card mt-4">
+            <div class="card-header text-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-trophy text-warning"></i>
+                    Official Tournament Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body">
+                                <h5><i class="fas fa-crown"></i> Champion</h5>
+                                <h4>{{ tournament_config.first_place_result }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-light">
+                            <div class="card-body">
+                                <h5><i class="fas fa-medal"></i> Runner-up</h5>
+                                <h4>{{ tournament_config.second_place_result }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-dark text-light">
+                            <div class="card-body">
+                                <h5><i class="fas fa-medal"></i> Bronze Medal</h5>
+                                <h4>{{ tournament_config.third_place_result }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Prevent selecting the same team for multiple positions
+document.addEventListener('DOMContentLoaded', function() {
+    const selects = document.querySelectorAll('select[name$="_place"]');
+    
+    selects.forEach(select => {
+        select.addEventListener('change', function() {
+            validateSelections();
+        });
+    });
+    
+    function validateSelections() {
+        const firstPlace = document.querySelector('select[name="first_place"]').value;
+        const secondPlace = document.querySelector('select[name="second_place"]').value;
+        const thirdPlace = document.querySelector('select[name="third_place"]').value;
+        
+        const selections = [firstPlace, secondPlace, thirdPlace].filter(Boolean);
+        const uniqueSelections = new Set(selections);
+        
+        if (selections.length > 0 && selections.length !== uniqueSelections.size) {
+            // Show warning for duplicate selections
+            showDuplicateWarning();
+        } else {
+            hideDuplicateWarning();
+        }
+    }
+    
+    function showDuplicateWarning() {
+        let warning = document.getElementById('duplicateWarning');
+        if (!warning) {
+            warning = document.createElement('div');
+            warning.id = 'duplicateWarning';
+            warning.className = 'alert alert-warning mt-3';
+            warning.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Please select different teams for each position.';
+            document.querySelector('form').appendChild(warning);
+        }
+        
+        // Disable submit button
+        document.querySelector('button[type="submit"]').disabled = true;
+    }
+    
+    function hideDuplicateWarning() {
+        const warning = document.getElementById('duplicateWarning');
+        if (warning) {
+            warning.remove();
+        }
+        
+        // Enable submit button
+        document.querySelector('button[type="submit"]').disabled = false;
+    }
+});
+</script>
+{% endblock %}

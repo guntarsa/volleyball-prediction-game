@@ -73,13 +73,15 @@
             
             <div class="row align-items-end">
                 <div class="col-md-4 text-center">
-                    <label for="team1_score_{{ game.id }}" class="form-label">{{ game.team1 }} Score:</label>
-                    <input type="number" name="team1_score" id="team1_score_{{ game.id }}" class="form-control score-input" min="0" max="5" required>
+                    <label for="team1_score_{{ game.id }}" class="form-label">{{ game.team1 }} Sets:</label>
+                    <input type="number" name="team1_score" id="team1_score_{{ game.id }}" class="form-control score-input" min="0" max="3" required>
+                    <small class="text-muted">Sets won (0-3)</small>
                 </div>
                 
                 <div class="col-md-4 text-center">
-                    <label for="team2_score_{{ game.id }}" class="form-label">{{ game.team2 }} Score:</label>
-                    <input type="number" name="team2_score" id="team2_score_{{ game.id }}" class="form-control score-input" min="0" max="5" required>
+                    <label for="team2_score_{{ game.id }}" class="form-label">{{ game.team2 }} Sets:</label>
+                    <input type="number" name="team2_score" id="team2_score_{{ game.id }}" class="form-control score-input" min="0" max="3" required>
+                    <small class="text-muted">Sets won (0-3)</small>
                 </div>
                 
                 <div class="col-md-4">
@@ -118,6 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.prediction-form').forEach(form => {
         const gameId = form.querySelector('input[name="game_id"]').value;
         loadUserPrediction(gameId);
+        
+        // Add volleyball scoring validation
+        addVolleyballValidation(form);
     });
 });
 
@@ -186,5 +191,59 @@ function updateCountdowns() {
 // Update countdowns every minute
 setInterval(updateCountdowns, 60000);
 updateCountdowns();
+
+function addVolleyballValidation(form) {
+    const team1Input = form.querySelector('input[name="team1_score"]');
+    const team2Input = form.querySelector('input[name="team2_score"]');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    function validateVolleyballScore() {
+        const team1Score = parseInt(team1Input.value) || 0;
+        const team2Score = parseInt(team2Input.value) || 0;
+        
+        // Check if it's a valid volleyball score
+        const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
+                       (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
+        
+        // Update visual feedback
+        if (team1Input.value && team2Input.value) {
+            if (isValid) {
+                team1Input.classList.remove('is-invalid');
+                team2Input.classList.remove('is-invalid');
+                team1Input.classList.add('is-valid');
+                team2Input.classList.add('is-valid');
+                submitBtn.disabled = false;
+            } else {
+                team1Input.classList.remove('is-valid');
+                team2Input.classList.remove('is-valid');
+                team1Input.classList.add('is-invalid');
+                team2Input.classList.add('is-invalid');
+                submitBtn.disabled = true;
+            }
+        } else {
+            // Reset if fields are empty
+            team1Input.classList.remove('is-valid', 'is-invalid');
+            team2Input.classList.remove('is-valid', 'is-invalid');
+            submitBtn.disabled = false;
+        }
+    }
+    
+    team1Input.addEventListener('input', validateVolleyballScore);
+    team2Input.addEventListener('input', validateVolleyballScore);
+    
+    // Prevent form submission with invalid scores
+    form.addEventListener('submit', function(e) {
+        const team1Score = parseInt(team1Input.value) || 0;
+        const team2Score = parseInt(team2Input.value) || 0;
+        
+        const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
+                       (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
+        }
+    });
+}
 </script>
 {% endblock %}
