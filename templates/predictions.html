@@ -60,51 +60,60 @@
             <input type="hidden" name="game_id" value="{{ game.id }}">
             
             <div class="row">
+                <!-- Team 1 Column -->
                 <div class="col-md-5">
-                    <div class="text-center mb-3">
-                        <h5 class="team-name fw-bold text-primary">
-                            {% if get_country_code(game.team1) %}
-                                <span class="fi fi-{{ get_country_code(game.team1) }} team-flag-large"></span>
-                            {% endif %}
-                            {{ game.team1 }}
-                        </h5>
-                    </div>
-                    <div class="text-center">
-                        <label for="team1_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>
-                        <input type="number" name="team1_score" id="team1_score_{{ game.id }}" 
-                               class="form-control form-control-lg text-center score-input" 
-                               min="0" max="3" placeholder="0-3" required>
-                        <small class="text-muted d-block mt-1">Enter sets won (0-3)</small>
+                    <div class="team-prediction-card text-center">
+                        <div class="mb-3">
+                            <h5 class="team-name fw-bold text-primary mb-2">
+                                {% if get_country_code(game.team1) %}
+                                    <span class="fi fi-{{ get_country_code(game.team1) }} team-flag-large"></span>
+                                {% endif %}
+                                {{ game.team1 }}
+                            </h5>
+                        </div>
+                        <div class="prediction-input-section">
+                            <label for="team1_score_{{ game.id }}" class="form-label fw-semibold mb-2">Sets Won</label>
+                            <input type="number" name="team1_score" id="team1_score_{{ game.id }}" 
+                                   class="form-control form-control-lg text-center score-input mb-2" 
+                                   min="0" max="3" placeholder="0-3" required>
+                            <small class="text-muted">Enter sets won (0-3)</small>
+                        </div>
                     </div>
                 </div>
                 
+                <!-- VS and Submit Column -->
                 <div class="col-md-2 d-flex align-items-center justify-content-center">
                     <div class="text-center">
-                        <span class="vs-text h3 text-muted fw-bold">VS</span>
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-success btn-sm w-100">
-                                <i class="fas fa-save"></i><br>
-                                <small>Save</small>
+                        <div class="vs-section mb-4">
+                            <span class="vs-text h3 text-muted fw-bold">VS</span>
+                        </div>
+                        <div class="submit-section">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-save"></i>
+                                Save Prediction
                             </button>
                         </div>
                     </div>
                 </div>
                 
+                <!-- Team 2 Column -->
                 <div class="col-md-5">
-                    <div class="text-center mb-3">
-                        <h5 class="team-name fw-bold text-primary">
-                            {% if get_country_code(game.team2) %}
-                                <span class="fi fi-{{ get_country_code(game.team2) }} team-flag-large"></span>
-                            {% endif %}
-                            {{ game.team2 }}
-                        </h5>
-                    </div>
-                    <div class="text-center">
-                        <label for="team2_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>
-                        <input type="number" name="team2_score" id="team2_score_{{ game.id }}" 
-                               class="form-control form-control-lg text-center score-input" 
-                               min="0" max="3" placeholder="0-3" required>
-                        <small class="text-muted d-block mt-1">Enter sets won (0-3)</small>
+                    <div class="team-prediction-card text-center">
+                        <div class="mb-3">
+                            <h5 class="team-name fw-bold text-primary mb-2">
+                                {% if get_country_code(game.team2) %}
+                                    <span class="fi fi-{{ get_country_code(game.team2) }} team-flag-large"></span>
+                                {% endif %}
+                                {{ game.team2 }}
+                            </h5>
+                        </div>
+                        <div class="prediction-input-section">
+                            <label for="team2_score_{{ game.id }}" class="form-label fw-semibold mb-2">Sets Won</label>
+                            <input type="number" name="team2_score" id="team2_score_{{ game.id }}" 
+                                   class="form-control form-control-lg text-center score-input mb-2" 
+                                   min="0" max="3" placeholder="0-3" required>
+                            <small class="text-muted">Enter sets won (0-3)</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -224,19 +233,22 @@ updateCountdowns();
 function addVolleyballValidation(form) {
     const team1Input = form.querySelector('input[name="team1_score"]');
     const team2Input = form.querySelector('input[name="team2_score"]');
-    const submitBtn = form.querySelector('button[type="submit"]');
     
-    function validateVolleyballScore() {
+    // Only validate on form submission - no real-time validation to avoid UX issues
+    form.addEventListener('submit', function(e) {
         const team1Value = team1Input.value.trim();
         const team2Value = team2Input.value.trim();
         
-        // Reset all styling first
+        // Clear any previous validation styling
         team1Input.classList.remove('is-valid', 'is-invalid');
         team2Input.classList.remove('is-valid', 'is-invalid');
-        submitBtn.disabled = false;
         
-        // If either field is empty, don't show any validation styling
+        // Check if both fields are filled
         if (!team1Value || !team2Value) {
+            e.preventDefault();
+            team1Input.classList.add('is-invalid');
+            team2Input.classList.add('is-invalid');
+            alert('Please fill in both score fields.');
             return;
         }
         
@@ -247,9 +259,10 @@ function addVolleyballValidation(form) {
         if (isNaN(team1Score) || isNaN(team2Score) || 
             team1Score < 0 || team1Score > 3 || 
             team2Score < 0 || team2Score > 3) {
+            e.preventDefault();
             team1Input.classList.add('is-invalid');
             team2Input.classList.add('is-invalid');
-            submitBtn.disabled = true;
+            alert('Please enter valid scores between 0 and 3.');
             return;
         }
         
@@ -257,51 +270,17 @@ function addVolleyballValidation(form) {
         const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
                        (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
         
-        if (isValid) {
-            team1Input.classList.add('is-valid');
-            team2Input.classList.add('is-valid');
-            submitBtn.disabled = false;
-        } else {
-            team1Input.classList.add('is-invalid');
-            team2Input.classList.add('is-invalid');
-            submitBtn.disabled = true;
-        }
-    }
-    
-    team1Input.addEventListener('input', validateVolleyballScore);
-    team2Input.addEventListener('input', validateVolleyballScore);
-    team1Input.addEventListener('blur', validateVolleyballScore);
-    team2Input.addEventListener('blur', validateVolleyballScore);
-    
-    // Prevent form submission with invalid scores
-    form.addEventListener('submit', function(e) {
-        const team1Value = team1Input.value.trim();
-        const team2Value = team2Input.value.trim();
-        
-        if (!team1Value || !team2Value) {
-            e.preventDefault();
-            alert('Please fill in both score fields.');
-            return;
-        }
-        
-        const team1Score = parseInt(team1Value);
-        const team2Score = parseInt(team2Value);
-        
-        if (isNaN(team1Score) || isNaN(team2Score) || 
-            team1Score < 0 || team1Score > 3 || 
-            team2Score < 0 || team2Score > 3) {
-            e.preventDefault();
-            alert('Please enter valid scores between 0 and 3.');
-            return;
-        }
-        
-        const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
-                       (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
-        
         if (!isValid) {
             e.preventDefault();
-            alert('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
+            team1Input.classList.add('is-invalid');
+            team2Input.classList.add('is-invalid');
+            alert('Invalid volleyball score!\n\nValid scores:\n• 3-0 (sweep)\n• 3-1 (four sets)\n• 3-2 (five sets)\n\nWinner must have 3 sets, loser 0-2 sets.');
+            return;
         }
+        
+        // If we get here, the form is valid - add success styling
+        team1Input.classList.add('is-valid');
+        team2Input.classList.add('is-valid');
     });
 }
 </script>
