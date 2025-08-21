@@ -26,11 +26,12 @@
 1. **Push your changes to GitHub:**
    ```bash
    git add .
-   git commit -m "Add PostgreSQL support and fix admin persistence"
+   git commit -m "Add PostgreSQL support with Python 3.11 compatibility"
    git push origin main
    ```
 
 2. **Render will automatically deploy** and the app will:
+   - ✅ Use Python 3.11 (compatible with psycopg2)
    - ✅ Use persistent PostgreSQL database
    - ✅ Keep all data between deployments
    - ✅ Preserve admin user permanently

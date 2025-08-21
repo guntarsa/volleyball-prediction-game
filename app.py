@@ -14,6 +14,14 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'winamount-could-be-huge
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///volleyball_predictions.db')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+# Add connection pool settings for PostgreSQL
+if database_url.startswith('postgresql://'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
