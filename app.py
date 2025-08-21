@@ -114,6 +114,11 @@ class TournamentPrediction(db.Model):
     
     __table_args__ = (db.UniqueConstraint('user_id'),)
 
+class TournamentTeam(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     prediction_deadline = db.Column(db.DateTime, nullable=False)
@@ -390,19 +395,24 @@ def admin():
     users = User.query.order_by(User.created_at).all()
     tournament_config = TournamentConfig.query.first()
     tournament_predictions = TournamentPrediction.query.join(User).all()
+    tournament_teams = TournamentTeam.query.order_by(TournamentTeam.name).all()
     
-    # Get all teams for tournament results
-    teams = set()
-    for game in games:
-        teams.add(game.team1)
-        teams.add(game.team2)
-    teams = sorted(list(teams))
+    # Get all teams for tournament results (use tournament teams if available, otherwise game teams)
+    if tournament_teams:
+        teams = [team.name for team in tournament_teams]
+    else:
+        teams = set()
+        for game in games:
+            teams.add(game.team1)
+            teams.add(game.team2)
+        teams = sorted(list(teams))
     
     return render_template('admin.html', 
                          games=games, 
                          users=users, 
                          tournament_config=tournament_config,
                          tournament_predictions=tournament_predictions,
+                         tournament_teams=tournament_teams,
                          teams=teams)
 
 @app.route('/upload_games', methods=['POST'])
@@ -487,6 +497,81 @@ def upload_games():
     else:
         flash('Please upload a CSV file', 'error')
     
+    return redirect(url_for('admin'))
+
+@app.route('/upload_tournament_teams', methods=['POST'])
+@login_required
+@admin_required
+def upload_tournament_teams():
+    if 'file' not in request.files:
+        flash('No file selected', 'error')
+        return redirect(url_for('admin'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('admin'))
+    
+    if file and file.filename.lower().endswith('.csv'):
+        try:
+            # Read CSV content
+            content = file.read().decode('utf-8').splitlines()
+            reader = csv.DictReader(content)
+            
+            teams_added = 0
+            for row in reader:
+                # Expected CSV columns: team_name or name
+                team_name = row.get('team_name') or row.get('name') or row.get('team')
+                if not team_name:
+                    continue
+                
+                team_name = team_name.strip()
+                if not team_name:
+                    continue
+                
+                # Check if team already exists
+                existing = TournamentTeam.query.filter_by(name=team_name).first()
+                
+                if not existing:
+                    team = TournamentTeam(name=team_name)
+                    db.session.add(team)
+                    teams_added += 1
+            
+            db.session.commit()
+            flash(f'Successfully imported {teams_added} tournament teams', 'success')
+            
+        except Exception as e:
+            flash(f'Error importing CSV: {str(e)}', 'error')
+    else:
+        flash('Please upload a CSV file', 'error')
+    
+    return redirect(url_for('admin'))
+
+@app.route('/delete_tournament_team/<int:team_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_tournament_team(team_id):
+    team = TournamentTeam.query.get(team_id)
+    if not team:
+        flash('Team not found', 'error')
+        return redirect(url_for('admin'))
+    
+    # Check if team is used in any tournament predictions
+    predictions_count = TournamentPrediction.query.filter(
+        (TournamentPrediction.first_place == team.name) |
+        (TournamentPrediction.second_place == team.name) |
+        (TournamentPrediction.third_place == team.name)
+    ).count()
+    
+    if predictions_count > 0:
+        flash(f'Cannot delete team: {predictions_count} tournament predictions reference this team', 'error')
+        return redirect(url_for('admin'))
+    
+    # Delete the team
+    db.session.delete(team)
+    db.session.commit()
+    
+    flash(f'Tournament team "{team.name}" has been deleted', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/update_result', methods=['POST'])
@@ -728,13 +813,23 @@ def tournament_predictions():
         flash('Tournament predictions are not yet available. Please contact admin.', 'warning')
         return redirect(url_for('index'))
     
-    # Get all teams from games for dropdown options
-    teams = set()
-    games = Game.query.all()
-    for game in games:
-        teams.add(game.team1)
-        teams.add(game.team2)
-    teams = sorted(list(teams))
+    # Get tournament teams (if available) or fallback to game teams
+    tournament_teams = TournamentTeam.query.order_by(TournamentTeam.name).all()
+    if tournament_teams:
+        teams = [team.name for team in tournament_teams]
+    else:
+        # Fallback to teams from games
+        teams = set()
+        games = Game.query.all()
+        for game in games:
+            teams.add(game.team1)
+            teams.add(game.team2)
+        teams = sorted(list(teams))
+    
+    # Check if we have teams available
+    if not teams:
+        flash('No tournament teams available. Please contact admin to upload team list.', 'warning')
+        return redirect(url_for('index'))
     
     # Get user's existing prediction
     user_prediction = TournamentPrediction.query.filter_by(user_id=current_user.id).first()
@@ -837,12 +932,14 @@ with app.app_context():
         
         # Check if we need to add the password_reset_required column
         inspector = db.inspect(db.engine)
-        user_columns = [col['name'] for col in inspector.get_columns('user')]
+        existing_tables = inspector.get_table_names()
         
-        if 'password_reset_required' not in user_columns:
-            print("Adding password_reset_required column to existing User table...")
-            db.engine.execute('ALTER TABLE user ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE')
-            print("password_reset_required column added successfully")
+        if 'user' in existing_tables:
+            user_columns = [col['name'] for col in inspector.get_columns('user')]
+            if 'password_reset_required' not in user_columns:
+                print("Adding password_reset_required column to existing User table...")
+                db.engine.execute('ALTER TABLE user ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE')
+                print("password_reset_required column added successfully")
             
     except Exception as e:
         print(f"Database initialization error: {e}")

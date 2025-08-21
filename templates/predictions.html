@@ -55,39 +55,58 @@
         </div>
     </div>
     <div class="card-body">
-        <div class="row align-items-center mb-3">
-            <div class="col-md-4 text-center">
-                <h5 class="team-name">{{ game.team1 }}</h5>
-            </div>
-            <div class="col-md-4 text-center">
-                <span class="vs-text h4 text-muted">VS</span>
-            </div>
-            <div class="col-md-4 text-center">
-                <h5 class="team-name">{{ game.team2 }}</h5>
-            </div>
-        </div>
-        
         {% if game.is_prediction_open() %}
         <form method="POST" action="{{ url_for('make_prediction') }}" class="prediction-form">
             <input type="hidden" name="game_id" value="{{ game.id }}">
             
-            <div class="row align-items-end">
-                <div class="col-md-4 text-center">
-                    <label for="team1_score_{{ game.id }}" class="form-label">{{ game.team1 }} Sets:</label>
-                    <input type="number" name="team1_score" id="team1_score_{{ game.id }}" class="form-control score-input" min="0" max="3" required>
-                    <small class="text-muted">Sets won (0-3)</small>
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="text-center mb-3">
+                        <h5 class="team-name fw-bold text-primary">{{ game.team1 }}</h5>
+                    </div>
+                    <div class="text-center">
+                        <label for="team1_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>
+                        <input type="number" name="team1_score" id="team1_score_{{ game.id }}" 
+                               class="form-control form-control-lg text-center score-input" 
+                               min="0" max="3" placeholder="0-3" required>
+                        <small class="text-muted d-block mt-1">Enter sets won (0-3)</small>
+                    </div>
                 </div>
                 
-                <div class="col-md-4 text-center">
-                    <label for="team2_score_{{ game.id }}" class="form-label">{{ game.team2 }} Sets:</label>
-                    <input type="number" name="team2_score" id="team2_score_{{ game.id }}" class="form-control score-input" min="0" max="3" required>
-                    <small class="text-muted">Sets won (0-3)</small>
+                <div class="col-md-2 d-flex align-items-center justify-content-center">
+                    <div class="text-center">
+                        <span class="vs-text h3 text-muted fw-bold">VS</span>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-success btn-sm w-100">
+                                <i class="fas fa-save"></i><br>
+                                <small>Save</small>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-save"></i> Save Prediction
-                    </button>
+                <div class="col-md-5">
+                    <div class="text-center mb-3">
+                        <h5 class="team-name fw-bold text-primary">{{ game.team2 }}</h5>
+                    </div>
+                    <div class="text-center">
+                        <label for="team2_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>
+                        <input type="number" name="team2_score" id="team2_score_{{ game.id }}" 
+                               class="form-control form-control-lg text-center score-input" 
+                               min="0" max="3" placeholder="0-3" required>
+                        <small class="text-muted d-block mt-1">Enter sets won (0-3)</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="alert alert-info text-center py-2">
+                        <small>
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Volleyball Scoring:</strong> Winner must have 3 sets, loser 0-2 sets (3-0, 3-1, or 3-2)
+                        </small>
+                    </div>
                 </div>
             </div>
         </form>
@@ -198,43 +217,73 @@ function addVolleyballValidation(form) {
     const submitBtn = form.querySelector('button[type="submit"]');
     
     function validateVolleyballScore() {
-        const team1Score = parseInt(team1Input.value) || 0;
-        const team2Score = parseInt(team2Input.value) || 0;
+        const team1Value = team1Input.value.trim();
+        const team2Value = team2Input.value.trim();
         
-        // Check if it's a valid volleyball score
+        // Reset all styling first
+        team1Input.classList.remove('is-valid', 'is-invalid');
+        team2Input.classList.remove('is-valid', 'is-invalid');
+        submitBtn.disabled = false;
+        
+        // If either field is empty, don't show any validation styling
+        if (!team1Value || !team2Value) {
+            return;
+        }
+        
+        const team1Score = parseInt(team1Value);
+        const team2Score = parseInt(team2Value);
+        
+        // Check if values are valid numbers within range
+        if (isNaN(team1Score) || isNaN(team2Score) || 
+            team1Score < 0 || team1Score > 3 || 
+            team2Score < 0 || team2Score > 3) {
+            team1Input.classList.add('is-invalid');
+            team2Input.classList.add('is-invalid');
+            submitBtn.disabled = true;
+            return;
+        }
+        
+        // Check if it's a valid volleyball score (one team has 3, other has 0-2)
         const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
                        (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
         
-        // Update visual feedback
-        if (team1Input.value && team2Input.value) {
-            if (isValid) {
-                team1Input.classList.remove('is-invalid');
-                team2Input.classList.remove('is-invalid');
-                team1Input.classList.add('is-valid');
-                team2Input.classList.add('is-valid');
-                submitBtn.disabled = false;
-            } else {
-                team1Input.classList.remove('is-valid');
-                team2Input.classList.remove('is-valid');
-                team1Input.classList.add('is-invalid');
-                team2Input.classList.add('is-invalid');
-                submitBtn.disabled = true;
-            }
-        } else {
-            // Reset if fields are empty
-            team1Input.classList.remove('is-valid', 'is-invalid');
-            team2Input.classList.remove('is-valid', 'is-invalid');
+        if (isValid) {
+            team1Input.classList.add('is-valid');
+            team2Input.classList.add('is-valid');
             submitBtn.disabled = false;
+        } else {
+            team1Input.classList.add('is-invalid');
+            team2Input.classList.add('is-invalid');
+            submitBtn.disabled = true;
         }
     }
     
     team1Input.addEventListener('input', validateVolleyballScore);
     team2Input.addEventListener('input', validateVolleyballScore);
+    team1Input.addEventListener('blur', validateVolleyballScore);
+    team2Input.addEventListener('blur', validateVolleyballScore);
     
     // Prevent form submission with invalid scores
     form.addEventListener('submit', function(e) {
-        const team1Score = parseInt(team1Input.value) || 0;
-        const team2Score = parseInt(team2Input.value) || 0;
+        const team1Value = team1Input.value.trim();
+        const team2Value = team2Input.value.trim();
+        
+        if (!team1Value || !team2Value) {
+            e.preventDefault();
+            alert('Please fill in both score fields.');
+            return;
+        }
+        
+        const team1Score = parseInt(team1Value);
+        const team2Score = parseInt(team2Value);
+        
+        if (isNaN(team1Score) || isNaN(team2Score) || 
+            team1Score < 0 || team1Score > 3 || 
+            team2Score < 0 || team2Score > 3) {
+            e.preventDefault();
+            alert('Please enter valid scores between 0 and 3.');
+            return;
+        }
         
         const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
                        (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
