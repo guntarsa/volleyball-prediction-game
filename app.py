@@ -1004,7 +1004,9 @@ with app.app_context():
             user_columns = [col['name'] for col in inspector.get_columns('user')]
             if 'password_reset_required' not in user_columns:
                 print("Adding password_reset_required column to existing User table...")
-                db.engine.execute('ALTER TABLE user ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE')
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE "user" ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE'))
+                    conn.commit()
                 print("password_reset_required column added successfully")
         
         # Check if we need to add the country_code column to tournament_team table
@@ -1012,7 +1014,9 @@ with app.app_context():
             team_columns = [col['name'] for col in inspector.get_columns('tournament_team')]
             if 'country_code' not in team_columns:
                 print("Adding country_code column to existing TournamentTeam table...")
-                db.engine.execute('ALTER TABLE tournament_team ADD COLUMN country_code VARCHAR(2)')
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE tournament_team ADD COLUMN country_code VARCHAR(2)'))
+                    conn.commit()
                 print("country_code column added successfully")
                 
                 # Update existing teams with country codes
@@ -1026,14 +1030,16 @@ with app.app_context():
                     ('Russia', 'ru'), ('South Korea', 'kr'), ('Croatia', 'hr')
                 ]
                 
-                for team_name, country_code in teams_to_update:
-                    try:
-                        db.engine.execute(
-                            'UPDATE tournament_team SET country_code = :code WHERE name = :name',
-                            {'code': country_code, 'name': team_name}
-                        )
-                    except:
-                        pass  # Continue if team doesn't exist
+                with db.engine.connect() as conn:
+                    for team_name, country_code in teams_to_update:
+                        try:
+                            conn.execute(
+                                db.text('UPDATE tournament_team SET country_code = :code WHERE name = :name'),
+                                {'code': country_code, 'name': team_name}
+                            )
+                        except:
+                            pass  # Continue if team doesn't exist
+                    conn.commit()
                 print("Updated country codes for existing teams")
             
     except Exception as e:
