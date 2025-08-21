@@ -618,6 +618,13 @@
                                 <i class="fas fa-medal d-lg-none me-2"></i>Leaderboard
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('all_predictions') }}">
+                                <i class="fas fa-eye d-lg-none me-2"></i>
+                                <span class="d-none d-lg-inline">All Predictions</span>
+                                <span class="d-lg-none">Predictions</span>
+                            </a>
+                        </li>
                         {% if current_user.is_admin %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('admin') }}">

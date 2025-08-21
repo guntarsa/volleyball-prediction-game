@@ -1012,6 +1012,63 @@ def game_predictions(game_id):
         'predictions': predictions_data
     })
 
+@app.route('/all_predictions')
+@login_required
+def all_predictions():
+    # Get filter parameters
+    selected_date = request.args.get('date')
+    selected_pool = request.args.get('pool')
+    
+    # Base query: only games where deadline has passed
+    games_query = Game.query.filter(Game.prediction_deadline <= datetime.now(timezone.utc))
+    
+    # Apply date filter if provided
+    if selected_date:
+        try:
+            filter_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+            games_query = games_query.filter(db.func.date(Game.game_date) == filter_date)
+        except ValueError:
+            flash('Invalid date format', 'error')
+    
+    # Apply pool filter if provided
+    if selected_pool:
+        games_query = games_query.filter(Game.round_name.ilike(f'%{selected_pool}%'))
+    
+    # Order by game date (most recent first)
+    games = games_query.order_by(Game.game_date.desc()).all()
+    
+    # Get all predictions for these games
+    games_with_predictions = []
+    for game in games:
+        predictions = Prediction.query.filter_by(game_id=game.id).join(User).all()
+        predictions_data = []
+        for pred in predictions:
+            predictions_data.append({
+                'user_name': pred.user.name,
+                'team1_score': pred.team1_score,
+                'team2_score': pred.team2_score,
+                'predicted_winner': pred.predicted_winner,
+                'points': pred.points
+            })
+        
+        games_with_predictions.append({
+            'game': game,
+            'predictions': predictions_data,
+            'total_predictions': len(predictions_data)
+        })
+    
+    # Get unique dates and pools for filtering
+    all_games = Game.query.filter(Game.prediction_deadline <= datetime.now(timezone.utc)).all()
+    unique_dates = sorted(list(set(game.game_date.date() for game in all_games)), reverse=True) if all_games else []
+    unique_pools = sorted(list(set(game.round_name for game in all_games))) if all_games else []
+    
+    return render_template('all_predictions.html', 
+                         games_with_predictions=games_with_predictions,
+                         unique_dates=unique_dates,
+                         unique_pools=unique_pools,
+                         selected_date=selected_date,
+                         selected_pool=selected_pool)
+
 # Initialize database
 with app.app_context():
     try:
