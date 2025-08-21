@@ -28,34 +28,152 @@
     </div>
 </div>
 
+<!-- Group games by date -->
+{% set games_by_date = {} %}
 {% for game in games %}
-<div class="card match-card">
-    <div class="card-header text-center">
-        <h6 class="mb-1 text-primary">{{ game.round_name }}</h6>
-        <div class="row">
-            <div class="col-md-6">
-                <small class="text-muted">
-                    <i class="fas fa-calendar"></i>
-                    {{ game.game_date.strftime('%b %d at %H:%M') }}
-                </small>
+    {% set game_date = game.game_date.strftime('%Y-%m-%d') %}
+    {% if game_date not in games_by_date %}
+        {% set _ = games_by_date.update({game_date: []}) %}
+    {% endif %}
+    {% set _ = games_by_date[game_date].append(game) %}
+{% endfor %}
+
+<!-- Date navigation -->
+{% if games_by_date %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar"></i> Filter Games by Date
+                </h5>
             </div>
-            <div class="col-md-6">
-                {% if game.is_prediction_open() %}
-                    <small class="text-success">
-                        <i class="fas fa-unlock"></i>
-                        Deadline: {{ game.prediction_deadline.strftime('%b %d at %H:%M') }}
-                    </small>
-                {% else %}
-                    <small class="text-danger">
-                        <i class="fas fa-lock"></i>
-                        Predictions Locked
-                    </small>
-                {% endif %}
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAllDates()" id="showAllBtn">
+                        <i class="fas fa-eye"></i> Show All
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="hideAllDates()" id="hideAllBtn">
+                        <i class="fas fa-eye-slash"></i> Hide All
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="showUpcomingOnly()" id="upcomingBtn">
+                        <i class="fas fa-clock"></i> Upcoming Only
+                    </button>
+                </div>
+                <div class="date-buttons-container">
+                    {% for date_str in games_by_date.keys() | sort %}
+                        {% set date_obj = games_by_date[date_str][0].game_date %}
+                        {% set is_today = date_obj.strftime('%Y-%m-%d') == moment().strftime('%Y-%m-%d') %}
+                        {% set has_upcoming = games_by_date[date_str] | selectattr('is_finished', 'equalto', False) | list | length > 0 %}
+                        <button class="btn btn-sm date-filter-btn me-2 mb-2 
+                                       {% if has_upcoming %}btn-success{% else %}btn-secondary{% endif %}"
+                                onclick="toggleDate('{{ date_str }}')" 
+                                id="dateBtn_{{ date_str }}">
+                            <i class="fas fa-calendar-day"></i>
+                            {{ date_obj.strftime('%b %d') }}
+                            {% if is_today %}<span class="badge bg-warning text-dark ms-1">Today</span>{% endif %}
+                            <small class="d-block">{{ games_by_date[date_str] | length }} games</small>
+                        </button>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>
-    <div class="card-body">
-        {% if game.is_prediction_open() %}
+</div>
+
+<!-- Games organized by date -->
+{% for date_str in games_by_date.keys() | sort %}
+    {% set date_games = games_by_date[date_str] %}
+    {% set date_obj = date_games[0].game_date %}
+    {% set upcoming_count = date_games | selectattr('is_finished', 'equalto', False) | list | length %}
+    {% set finished_count = date_games | selectattr('is_finished', 'equalto', True) | list | length %}
+    
+    <div class="date-section mb-4" id="dateSection_{{ date_str }}" style="display: block;">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white cursor-pointer" onclick="toggleDateSection('{{ date_str }}')">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt"></i>
+                        {{ date_obj.strftime('%A, %B %d, %Y') }}
+                    </h5>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-light text-dark me-2">
+                            {% if upcoming_count > 0 %}
+                                {{ upcoming_count }} upcoming
+                            {% endif %}
+                            {% if finished_count > 0 %}
+                                {% if upcoming_count > 0 %}, {% endif %}
+                                {{ finished_count }} finished
+                            {% endif %}
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon" id="toggleIcon_{{ date_str }}"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse show" id="dateContent_{{ date_str }}">
+                <div class="card-body p-0">
+                    {% for game in date_games %}
+                    <div class="game-card border-bottom {% if not loop.last %}mb-3{% endif %}">
+                        {% if game.is_finished %}
+                        <!-- Finished Game Display -->
+                        <div class="p-3 bg-light rounded mb-3">
+                            <div class="row text-center">
+                                <div class="col-12 mb-2">
+                                    <h6 class="text-muted">{{ game.round_name }} - {{ game.game_date.strftime('%H:%M') }}</h6>
+                                </div>
+                                <div class="col-5">
+                                    <h5 class="team-name">
+                                        {% if get_country_code(game.team1) %}
+                                            <span class="fi fi-{{ get_country_code(game.team1) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ game.team1 }}
+                                        {% if game.team1_score > game.team2_score %}
+                                            <span class="badge bg-success ms-1">W</span>
+                                        {% endif %}
+                                    </h5>
+                                    <h3 class="text-primary fw-bold">{{ game.team1_score }}</h3>
+                                </div>
+                                <div class="col-2 d-flex align-items-center justify-content-center">
+                                    <span class="h4 text-muted">-</span>
+                                </div>
+                                <div class="col-5">
+                                    <h5 class="team-name">
+                                        {% if get_country_code(game.team2) %}
+                                            <span class="fi fi-{{ get_country_code(game.team2) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ game.team2 }}
+                                        {% if game.team2_score > game.team1_score %}
+                                            <span class="badge bg-success ms-1">W</span>
+                                        {% endif %}
+                                    </h5>
+                                    <h3 class="text-primary fw-bold">{{ game.team2_score }}</h3>
+                                </div>
+                                {% if game.are_predictions_visible() %}
+                                <div class="col-12 mt-3">
+                                    <button class="btn btn-outline-info btn-sm" onclick="loadAllPredictions({{ game.id }})">
+                                        <i class="fas fa-eye"></i> View Predictions
+                                    </button>
+                                    <div id="predictions_{{ game.id }}" class="mt-3" style="display: none;"></div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Active Game Display -->
+                        <div class="p-3">
+                            <div class="mb-2 text-center">
+                                <h6 class="text-primary">{{ game.round_name }} - {{ game.game_date.strftime('%H:%M') }}</h6>
+                                {% if game.is_prediction_open() %}
+                                    <small class="text-success">
+                                        <i class="fas fa-unlock"></i> Deadline: {{ game.prediction_deadline.strftime('%H:%M') }}
+                                    </small>
+                                {% else %}
+                                    <small class="text-danger">
+                                        <i class="fas fa-lock"></i> Predictions Locked
+                                    </small>
+                                {% endif %}
+                            </div>
+                            {% if game.is_prediction_open() %}
         <form method="POST" action="{{ url_for('make_prediction') }}" class="prediction-form">
             <input type="hidden" name="game_id" value="{{ game.id }}">
             
@@ -88,10 +206,16 @@
                             <span class="vs-text h3 text-muted fw-bold">VS</span>
                         </div>
                         <div class="submit-section">
-                            <button type="submit" class="btn btn-success w-100">
+                            <button type="submit" class="btn btn-success w-100" id="submit_btn_{{ game.id }}">
                                 <i class="fas fa-save"></i>
-                                Save Prediction
+                                <span id="submit_text_{{ game.id }}">Save Prediction</span>
                             </button>
+                            <div class="prediction-status mt-2" id="status_{{ game.id }}" style="display: none;">
+                                <small class="text-success">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span id="status_text_{{ game.id }}">Prediction saved</span>
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -143,9 +267,15 @@
             <div id="predictions_{{ game.id }}" class="mt-3" style="display: none;"></div>
         </div>
         {% endif %}
-        {% endif %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 {% endfor %}
 
 {% endif %}
@@ -168,8 +298,63 @@ function loadUserPrediction(gameId) {
     fetch(`/get_prediction/${gameId}`)
         .then(response => response.json())
         .then(data => {
-            document.getElementById(`team1_score_${gameId}`).value = data.team1_score || '';
-            document.getElementById(`team2_score_${gameId}`).value = data.team2_score || '';
+            const team1Input = document.getElementById(`team1_score_${gameId}`);
+            const team2Input = document.getElementById(`team2_score_${gameId}`);
+            const submitText = document.getElementById(`submit_text_${gameId}`);
+            const submitBtn = document.getElementById(`submit_btn_${gameId}`);
+            const statusDiv = document.getElementById(`status_${gameId}`);
+            const statusText = document.getElementById(`status_text_${gameId}`);
+            
+            if (data.team1_score !== null && data.team2_score !== null && data.team1_score !== '' && data.team2_score !== '') {
+                // Existing prediction found
+                team1Input.value = data.team1_score;
+                team2Input.value = data.team2_score;
+                
+                // Update button and status
+                submitText.textContent = 'Update Prediction';
+                submitBtn.classList.remove('btn-success');
+                submitBtn.classList.add('btn-warning');
+                submitBtn.querySelector('i').classList.remove('fa-save');
+                submitBtn.querySelector('i').classList.add('fa-edit');
+                
+                // Show status
+                statusDiv.style.display = 'block';
+                statusText.textContent = `Current: ${data.team1_score} - ${data.team2_score}`;
+                
+                // Add visual enhancement to form
+                team1Input.classList.add('has-prediction');
+                team2Input.classList.add('has-prediction');
+                
+                // Add visual enhancement to team cards
+                const team1Card = team1Input.closest('.team-prediction-card');
+                const team2Card = team2Input.closest('.team-prediction-card');
+                if (team1Card) team1Card.classList.add('has-existing-prediction');
+                if (team2Card) team2Card.classList.add('has-existing-prediction');
+            } else {
+                // No prediction exists
+                team1Input.value = '';
+                team2Input.value = '';
+                
+                // Reset button
+                submitText.textContent = 'Save Prediction';
+                submitBtn.classList.remove('btn-warning');
+                submitBtn.classList.add('btn-success');
+                submitBtn.querySelector('i').classList.remove('fa-edit');
+                submitBtn.querySelector('i').classList.add('fa-save');
+                
+                // Hide status
+                statusDiv.style.display = 'none';
+                
+                // Remove visual enhancement
+                team1Input.classList.remove('has-prediction');
+                team2Input.classList.remove('has-prediction');
+                
+                // Remove visual enhancement from team cards
+                const team1Card = team1Input.closest('.team-prediction-card');
+                const team2Card = team2Input.closest('.team-prediction-card');
+                if (team1Card) team1Card.classList.remove('has-existing-prediction');
+                if (team2Card) team2Card.classList.remove('has-existing-prediction');
+            }
         })
         .catch(error => console.error('Error loading prediction:', error));
 }
@@ -281,6 +466,12 @@ function addVolleyballValidation(form) {
         // If we get here, the form is valid - add success styling
         team1Input.classList.add('is-valid');
         team2Input.classList.add('is-valid');
+        
+        // Add a small delay to show success state before submission
+        setTimeout(() => {
+            // The form will submit and page will redirect
+            // When user comes back, loadUserPrediction will show the updated state
+        }, 500);
     });
 }
 </script>

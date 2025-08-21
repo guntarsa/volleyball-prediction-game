@@ -352,7 +352,8 @@ def logout():
 @app.route('/predictions')
 @login_required
 def predictions():
-    games = Game.query.filter_by(is_finished=False).order_by(Game.game_date).all()
+    # Get all games (both upcoming and finished) sorted by game time, earliest first
+    games = Game.query.order_by(Game.game_date.asc()).all()
     return render_template('predictions.html', games=games)
 
 @app.route('/leaderboard')
@@ -387,8 +388,11 @@ def make_prediction():
         return redirect(url_for('predictions'))
     
     try:
+        # Convert all form data to appropriate types
+        game_id = int(game_id)
         team1_score = int(team1_score)
         team2_score = int(team2_score)
+        
         if team1_score < 0 or team2_score < 0:
             raise ValueError("Scores cannot be negative")
         
@@ -401,7 +405,7 @@ def make_prediction():
         if "Invalid volleyball score" in str(e):
             flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
         else:
-            flash('Please enter valid scores', 'error')
+            flash('Please enter valid values', 'error')
         return redirect(url_for('predictions'))
     
     game = Game.query.get(game_id)

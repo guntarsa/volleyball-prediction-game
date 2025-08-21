@@ -108,6 +108,22 @@
             min-width: 120px;
         }
         
+        /* Prediction status styling */
+        .prediction-status {
+            transition: all 0.3s ease;
+        }
+        
+        .has-prediction {
+            border-color: #ffc107 !important;
+            box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+            background-color: rgba(255, 193, 7, 0.05) !important;
+        }
+        
+        .team-prediction-card.has-existing-prediction {
+            border: 2px solid #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        
         /* Country flag styling */
         .team-flag {
             width: 20px;
