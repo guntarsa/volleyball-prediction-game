@@ -121,13 +121,25 @@
                         <h6><i class="fas fa-check-circle"></i> Your Current Prediction</h6>
                         <div class="row text-center">
                             <div class="col-md-4">
-                                <strong>1st:</strong> {{ user_prediction.first_place }}
+                                <strong>1st:</strong> 
+                                {% if get_country_code(user_prediction.first_place) %}
+                                    <span class="fi fi-{{ get_country_code(user_prediction.first_place) }} team-flag"></span>
+                                {% endif %}
+                                {{ user_prediction.first_place }}
                             </div>
                             <div class="col-md-4">
-                                <strong>2nd:</strong> {{ user_prediction.second_place }}
+                                <strong>2nd:</strong> 
+                                {% if get_country_code(user_prediction.second_place) %}
+                                    <span class="fi fi-{{ get_country_code(user_prediction.second_place) }} team-flag"></span>
+                                {% endif %}
+                                {{ user_prediction.second_place }}
                             </div>
                             <div class="col-md-4">
-                                <strong>3rd:</strong> {{ user_prediction.third_place }}
+                                <strong>3rd:</strong> 
+                                {% if get_country_code(user_prediction.third_place) %}
+                                    <span class="fi fi-{{ get_country_code(user_prediction.third_place) }} team-flag"></span>
+                                {% endif %}
+                                {{ user_prediction.third_place }}
                             </div>
                         </div>
                         <small class="text-muted">Last updated: {{ user_prediction.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
@@ -147,7 +159,12 @@
                                     <div class="card bg-warning text-dark">
                                         <div class="card-body">
                                             <h6>1st Place</h6>
-                                            <strong>{{ user_prediction.first_place }}</strong>
+                                            <strong>
+                                                {% if get_country_code(user_prediction.first_place) %}
+                                                    <span class="fi fi-{{ get_country_code(user_prediction.first_place) }} team-flag"></span>
+                                                {% endif %}
+                                                {{ user_prediction.first_place }}
+                                            </strong>
                                         </div>
                                     </div>
                                 </div>
@@ -155,7 +172,12 @@
                                     <div class="card bg-secondary text-light">
                                         <div class="card-body">
                                             <h6>2nd Place</h6>
-                                            <strong>{{ user_prediction.second_place }}</strong>
+                                            <strong>
+                                                {% if get_country_code(user_prediction.second_place) %}
+                                                    <span class="fi fi-{{ get_country_code(user_prediction.second_place) }} team-flag"></span>
+                                                {% endif %}
+                                                {{ user_prediction.second_place }}
+                                            </strong>
                                         </div>
                                     </div>
                                 </div>
@@ -163,7 +185,12 @@
                                     <div class="card bg-dark text-light">
                                         <div class="card-body">
                                             <h6>3rd Place</h6>
-                                            <strong>{{ user_prediction.third_place }}</strong>
+                                            <strong>
+                                                {% if get_country_code(user_prediction.third_place) %}
+                                                    <span class="fi fi-{{ get_country_code(user_prediction.third_place) }} team-flag"></span>
+                                                {% endif %}
+                                                {{ user_prediction.third_place }}
+                                            </strong>
                                         </div>
                                     </div>
                                 </div>
@@ -174,19 +201,31 @@
                                 <h6>Tournament Results:</h6>
                                 <div class="row text-center">
                                     <div class="col-md-4">
-                                        <strong>Winner:</strong> {{ tournament_config.first_place_result }}
+                                        <strong>Winner:</strong> 
+                                        {% if get_country_code(tournament_config.first_place_result) %}
+                                            <span class="fi fi-{{ get_country_code(tournament_config.first_place_result) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ tournament_config.first_place_result }}
                                         {% if user_prediction.first_place == tournament_config.first_place_result %}
                                             <span class="badge bg-success ms-2">+50 pts</span>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-4">
-                                        <strong>Runner-up:</strong> {{ tournament_config.second_place_result }}
+                                        <strong>Runner-up:</strong> 
+                                        {% if get_country_code(tournament_config.second_place_result) %}
+                                            <span class="fi fi-{{ get_country_code(tournament_config.second_place_result) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ tournament_config.second_place_result }}
                                         {% if user_prediction.second_place == tournament_config.second_place_result %}
                                             <span class="badge bg-success ms-2">+25 pts</span>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-4">
-                                        <strong>Bronze:</strong> {{ tournament_config.third_place_result }}
+                                        <strong>Bronze:</strong> 
+                                        {% if get_country_code(tournament_config.third_place_result) %}
+                                            <span class="fi fi-{{ get_country_code(tournament_config.third_place_result) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ tournament_config.third_place_result }}
                                         {% if user_prediction.third_place == tournament_config.third_place_result %}
                                             <span class="badge bg-success ms-2">+25 pts</span>
                                         {% endif %}
@@ -222,7 +261,12 @@
                         <div class="card bg-warning text-dark">
                             <div class="card-body">
                                 <h5><i class="fas fa-crown"></i> Champion</h5>
-                                <h4>{{ tournament_config.first_place_result }}</h4>
+                                <h4>
+                                    {% if get_country_code(tournament_config.first_place_result) %}
+                                        <span class="fi fi-{{ get_country_code(tournament_config.first_place_result) }} team-flag-large"></span>
+                                    {% endif %}
+                                    {{ tournament_config.first_place_result }}
+                                </h4>
                             </div>
                         </div>
                     </div>
@@ -230,7 +274,12 @@
                         <div class="card bg-secondary text-light">
                             <div class="card-body">
                                 <h5><i class="fas fa-medal"></i> Runner-up</h5>
-                                <h4>{{ tournament_config.second_place_result }}</h4>
+                                <h4>
+                                    {% if get_country_code(tournament_config.second_place_result) %}
+                                        <span class="fi fi-{{ get_country_code(tournament_config.second_place_result) }} team-flag-large"></span>
+                                    {% endif %}
+                                    {{ tournament_config.second_place_result }}
+                                </h4>
                             </div>
                         </div>
                     </div>
@@ -238,7 +287,12 @@
                         <div class="card bg-dark text-light">
                             <div class="card-body">
                                 <h5><i class="fas fa-medal"></i> Bronze Medal</h5>
-                                <h4>{{ tournament_config.third_place_result }}</h4>
+                                <h4>
+                                    {% if get_country_code(tournament_config.third_place_result) %}
+                                        <span class="fi fi-{{ get_country_code(tournament_config.third_place_result) }} team-flag-large"></span>
+                                    {% endif %}
+                                    {{ tournament_config.third_place_result }}
+                                </h4>
                             </div>
                         </div>
                     </div>

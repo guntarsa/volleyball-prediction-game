@@ -188,7 +188,12 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                         {% for team in tournament_teams %}
                         <div class="col-md-6 mb-2">
                             <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
-                                <span class="fw-bold">{{ team.name }}</span>
+                                <span class="fw-bold">
+                                    {% if team.get_country_code() %}
+                                        <span class="fi fi-{{ team.get_country_code() }} team-flag"></span>
+                                    {% endif %}
+                                    {{ team.name }}
+                                </span>
                                 <button class="btn btn-sm btn-outline-danger" onclick="confirmTeamDelete({{ team.id }}, '{{ team.name }}')">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -216,21 +221,22 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                 </h5>
             </div>
             <div class="card-body">
-                <pre class="bg-light p-3 rounded"><code>team_name
-Brazil
-USA  
-Poland
-Italy
-Serbia
-Turkey
-Japan
-China
-Netherlands
-Dominican Republic
+                <pre class="bg-light p-3 rounded"><code>team_name,country_code
+Brazil,br
+USA,us
+Poland,pl
+Italy,it
+Serbia,rs
+Turkey,tr
+Japan,jp
+China,cn
+Netherlands,nl
+Dominican Republic,do
 ...</code></pre>
                 <small class="text-muted">
                     <i class="fas fa-users"></i> Expected: 24 teams for tournament<br>
-                    <i class="fas fa-file-csv"></i> Format: One team per row<br>
+                    <i class="fas fa-file-csv"></i> Format: team_name required, country_code optional<br>
+                    <i class="fas fa-flag"></i> Country codes auto-detected if not provided<br>
                     <i class="fas fa-trophy"></i> Used for tournament predictions
                 </small>
             </div>
@@ -366,7 +372,17 @@ Dominican Republic
                                 </td>
                                 <td>{{ game.round_name }}</td>
                                 <td>
-                                    <strong>{{ game.team1 }}</strong> vs <strong>{{ game.team2 }}</strong>
+                                    <strong>
+                                        {% if get_country_code(game.team1) %}
+                                            <span class="fi fi-{{ get_country_code(game.team1) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ game.team1 }}
+                                    </strong> vs <strong>
+                                        {% if get_country_code(game.team2) %}
+                                            <span class="fi fi-{{ get_country_code(game.team2) }} team-flag"></span>
+                                        {% endif %}
+                                        {{ game.team2 }}
+                                    </strong>
                                 </td>
                                 <td>
                                     {% if game.is_finished %}

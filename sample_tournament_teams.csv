@@ -1,25 +1,25 @@
-team_name
-Brazil
-USA
-Poland
-Italy
-Serbia
-Turkey
-Japan
-China
-Netherlands
-Dominican Republic
-Russia
-France
-Germany
-South Korea
-Thailand
-Belgium
-Canada
-Bulgaria
-Argentina
-Slovenia
-Czech Republic
-Croatia
-Puerto Rico
-Ukraine
+team_name,country_code
+Brazil,br
+USA,us
+Poland,pl
+Italy,it
+Serbia,rs
+Turkey,tr
+Japan,jp
+China,cn
+Netherlands,nl
+Dominican Republic,do
+Russia,ru
+France,fr
+Germany,de
+South Korea,kr
+Thailand,th
+Belgium,be
+Canada,ca
+Bulgaria,bg
+Argentina,ar
+Slovenia,si
+Czech Republic,cz
+Croatia,hr
+Puerto Rico,pr
+Ukraine,ua

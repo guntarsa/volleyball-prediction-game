@@ -62,7 +62,12 @@
             <div class="row">
                 <div class="col-md-5">
                     <div class="text-center mb-3">
-                        <h5 class="team-name fw-bold text-primary">{{ game.team1 }}</h5>
+                        <h5 class="team-name fw-bold text-primary">
+                            {% if get_country_code(game.team1) %}
+                                <span class="fi fi-{{ get_country_code(game.team1) }} team-flag-large"></span>
+                            {% endif %}
+                            {{ game.team1 }}
+                        </h5>
                     </div>
                     <div class="text-center">
                         <label for="team1_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>
@@ -87,7 +92,12 @@
                 
                 <div class="col-md-5">
                     <div class="text-center mb-3">
-                        <h5 class="team-name fw-bold text-primary">{{ game.team2 }}</h5>
+                        <h5 class="team-name fw-bold text-primary">
+                            {% if get_country_code(game.team2) %}
+                                <span class="fi fi-{{ get_country_code(game.team2) }} team-flag-large"></span>
+                            {% endif %}
+                            {{ game.team2 }}
+                        </h5>
                     </div>
                     <div class="text-center">
                         <label for="team2_score_{{ game.id }}" class="form-label fw-semibold">Sets Won</label>

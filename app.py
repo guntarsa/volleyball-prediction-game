@@ -9,6 +9,49 @@ from werkzeug.utils import secure_filename
 from functools import wraps
 
 app = Flask(__name__)
+
+# Team name to country code mapping for flags
+TEAM_COUNTRY_MAPPING = {
+    'USA': 'us',
+    'Brazil': 'br',
+    'Poland': 'pl', 
+    'Italy': 'it',
+    'Serbia': 'rs',
+    'Turkey': 'tr',
+    'Japan': 'jp',
+    'China': 'cn',
+    'Netherlands': 'nl',
+    'Dominican Republic': 'do',
+    'Russia': 'ru',
+    'France': 'fr',
+    'Germany': 'de',
+    'South Korea': 'kr',
+    'Thailand': 'th',
+    'Belgium': 'be',
+    'Canada': 'ca',
+    'Bulgaria': 'bg',
+    'Argentina': 'ar',
+    'Slovenia': 'si',
+    'Czech Republic': 'cz',
+    'Croatia': 'hr',
+    'Puerto Rico': 'pr',
+    'Ukraine': 'ua',
+}
+
+def get_country_code(team_name):
+    """Get country code for team name, return None if not found"""
+    return TEAM_COUNTRY_MAPPING.get(team_name)
+
+def format_team_with_flag(team_name, flag_class='team-flag'):
+    """Format team name with flag HTML if country code exists"""
+    country_code = get_country_code(team_name)
+    if country_code:
+        return f'<span class="team-with-flag"><span class="fi fi-{country_code} {flag_class}"></span>{team_name}</span>'
+    return team_name
+
+# Register template functions
+app.jinja_env.globals['get_country_code'] = get_country_code
+app.jinja_env.globals['format_team_with_flag'] = format_team_with_flag
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'winamount-could-be-huge-default-key-change-in-production')
 # Handle PostgreSQL URL format for Render.com
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///volleyball_predictions.db')
@@ -117,7 +160,12 @@ class TournamentPrediction(db.Model):
 class TournamentTeam(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    country_code = db.Column(db.String(2), nullable=True)  # ISO country code for flag
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def get_country_code(self):
+        """Get country code, fallback to mapping if not set"""
+        return self.country_code or get_country_code(self.name)
 
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -520,7 +568,7 @@ def upload_tournament_teams():
             
             teams_added = 0
             for row in reader:
-                # Expected CSV columns: team_name or name
+                # Expected CSV columns: team_name/name/team, country_code (optional)
                 team_name = row.get('team_name') or row.get('name') or row.get('team')
                 if not team_name:
                     continue
@@ -529,13 +577,22 @@ def upload_tournament_teams():
                 if not team_name:
                     continue
                 
+                # Get country code from CSV or mapping
+                country_code = row.get('country_code', '').strip().lower()
+                if not country_code:
+                    country_code = get_country_code(team_name)
+                
                 # Check if team already exists
                 existing = TournamentTeam.query.filter_by(name=team_name).first()
                 
                 if not existing:
-                    team = TournamentTeam(name=team_name)
+                    team = TournamentTeam(name=team_name, country_code=country_code)
                     db.session.add(team)
                     teams_added += 1
+                elif country_code and not existing.country_code:
+                    # Update existing team with country code if missing
+                    existing.country_code = country_code
+                    db.session.add(existing)
             
             db.session.commit()
             flash(f'Successfully imported {teams_added} tournament teams', 'success')
