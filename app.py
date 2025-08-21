@@ -697,18 +697,17 @@ def delete_game(game_id):
         flash('Game not found', 'error')
         return redirect(url_for('admin'))
     
-    # Check if game has predictions
+    # Count predictions before deletion
     prediction_count = Prediction.query.filter_by(game_id=game_id).count()
     
-    if prediction_count > 0:
-        flash(f'Cannot delete game: {prediction_count} predictions exist for this game', 'error')
-        return redirect(url_for('admin'))
-    
-    # Delete the game
+    # Delete the game - predictions will be automatically deleted due to cascade='all, delete-orphan'
     db.session.delete(game)
     db.session.commit()
     
-    flash(f'Game "{game.team1} vs {game.team2}" has been deleted', 'success')
+    if prediction_count > 0:
+        flash(f'Game "{game.team1} vs {game.team2}" and {prediction_count} related predictions have been deleted', 'success')
+    else:
+        flash(f'Game "{game.team1} vs {game.team2}" has been deleted', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/bulk_delete_games', methods=['POST'])
@@ -724,7 +723,6 @@ def bulk_delete_games():
             return redirect(url_for('admin'))
         
         deleted_count = 0
-        skipped_count = 0
         errors = []
         
         for game_id in game_ids:
@@ -734,15 +732,7 @@ def bulk_delete_games():
                     errors.append(f"Game {game_id} not found")
                     continue
                     
-                # Check if game has predictions
-                prediction_count = Prediction.query.filter_by(game_id=game_id).count()
-                
-                if prediction_count > 0:
-                    skipped_count += 1
-                    print(f"Skipping game {game_id} - has {prediction_count} predictions")  # Debug log
-                    continue
-                
-                # Delete the game
+                # Delete the game - predictions will be automatically deleted due to cascade='all, delete-orphan'
                 db.session.delete(game)
                 deleted_count += 1
                 print(f"Marked game {game_id} for deletion")  # Debug log
@@ -753,20 +743,18 @@ def bulk_delete_games():
                 print(error_msg)  # Debug log
                 continue
         
-        if deleted_count > 0 or skipped_count > 0:
+        if deleted_count > 0:
             db.session.commit()
-            print(f"Database commit completed. Deleted: {deleted_count}, Skipped: {skipped_count}")  # Debug log
+            print(f"Database commit completed. Deleted: {deleted_count}")  # Debug log
         
         if deleted_count > 0:
             flash(f'Successfully deleted {deleted_count} games', 'success')
         
-        if skipped_count > 0:
-            flash(f'{skipped_count} games were skipped (they have existing predictions)', 'warning')
         
         if errors:
             flash(f'Errors occurred: {"; ".join(errors)}', 'error')
         
-        if deleted_count == 0 and skipped_count == 0:
+        if deleted_count == 0:
             flash('No games were deleted', 'info')
             
     except Exception as e:
