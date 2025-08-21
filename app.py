@@ -15,8 +15,10 @@ database_url = os.environ.get('DATABASE_URL', 'sqlite:///volleyball_predictions.
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-# Add connection pool settings for PostgreSQL
+# Use psycopg3 for PostgreSQL connections
 if database_url.startswith('postgresql://'):
+    # Replace postgresql:// with postgresql+psycopg:// for psycopg3
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
