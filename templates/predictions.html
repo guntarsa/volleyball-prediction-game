@@ -165,7 +165,7 @@
                         <div class="p-3 bg-light rounded mb-3 clickable-match" onclick="location.href='{{ url_for('match_detail', game_id=game.id) }}'" style="cursor: pointer;">
                             <div class="row text-center">
                                 <div class="col-12 mb-2">
-                                    <h6 class="text-muted">{{ game.round_name }} - {{ game.game_date.strftime('%H:%M') }}</h6>
+                                    <h6 class="text-muted">{{ game.round_name }} - {{ game.game_date | riga_time }}</h6>
                                     <small class="text-info"><i class="fas fa-eye"></i> Click to view all predictions</small>
                                 </div>
                                 <div class="col-5">
@@ -201,10 +201,10 @@
                         <!-- Active Game Display -->
                         <div class="p-3">
                             <div class="mb-2 text-center">
-                                <h6 class="text-primary">{{ game.round_name }} - {{ game.game_date.strftime('%H:%M') }}</h6>
+                                <h6 class="text-primary">{{ game.round_name }} - {{ game.game_date | riga_time }}</h6>
                                 {% if game.is_prediction_open() %}
                                     <small class="text-success">
-                                        <i class="fas fa-unlock"></i> Deadline: {{ game.prediction_deadline.strftime('%H:%M') }}
+                                        <i class="fas fa-unlock"></i> Deadline: {{ game.prediction_deadline | riga_time }}
                                     </small>
                                 {% else %}
                                     <small class="text-danger">

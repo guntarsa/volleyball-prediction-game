@@ -71,6 +71,31 @@ def format_team_with_flag(team_name, flag_class='team-flag'):
         return f'<span class="team-with-flag"><span class="fi fi-{country_code} {flag_class}"></span>{team_name}</span>'
     return team_name
 
+# Template filters for Riga timezone
+@app.template_filter('riga_datetime')
+def riga_datetime_filter(dt, format='%Y-%m-%d %H:%M'):
+    """Convert datetime to Riga timezone and format it"""
+    if dt is None:
+        return ''
+    riga_dt = to_riga_time(dt)
+    return riga_dt.strftime(format)
+
+@app.template_filter('riga_date')
+def riga_date_filter(dt):
+    """Convert datetime to Riga timezone date"""
+    if dt is None:
+        return ''
+    riga_dt = to_riga_time(dt)
+    return riga_dt.strftime('%Y-%m-%d')
+
+@app.template_filter('riga_time')
+def riga_time_filter(dt):
+    """Convert datetime to Riga timezone time"""
+    if dt is None:
+        return ''
+    riga_dt = to_riga_time(dt)
+    return riga_dt.strftime('%H:%M')
+
 # Register template functions
 app.jinja_env.globals['get_country_code'] = get_country_code
 app.jinja_env.globals['format_team_with_flag'] = format_team_with_flag
