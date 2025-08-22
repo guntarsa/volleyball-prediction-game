@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.team1 }} vs {{ game.team2 }} - Match Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Back Button -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <a href="{{ url_for('predictions') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Predictions
+            </a>
+        </div>
+    </div>
+
+    <!-- Match Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-volleyball-ball"></i> Match Details
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <!-- Team 1 -->
+                        <div class="col-5">
+                            <div class="d-flex flex-column align-items-center">
+                                <h3 class="mb-2">
+                                    {% if get_country_code(game.team1) %}
+                                        <span class="fi fi-{{ get_country_code(game.team1) }} me-2"></span>
+                                    {% endif %}
+                                    {{ game.team1 }}
+                                    {% if game.is_finished and game.team1_score > game.team2_score %}
+                                        <span class="badge bg-success ms-2">W</span>
+                                    {% endif %}
+                                </h3>
+                                {% if game.is_finished %}
+                                    <h1 class="text-primary fw-bold">{{ game.team1_score }}</h1>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- VS / Score -->
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            {% if game.is_finished %}
+                                <span class="h2 text-muted">-</span>
+                            {% else %}
+                                <span class="h3 text-muted fw-bold">VS</span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Team 2 -->
+                        <div class="col-5">
+                            <div class="d-flex flex-column align-items-center">
+                                <h3 class="mb-2">
+                                    {% if get_country_code(game.team2) %}
+                                        <span class="fi fi-{{ get_country_code(game.team2) }} me-2"></span>
+                                    {% endif %}
+                                    {{ game.team2 }}
+                                    {% if game.is_finished and game.team2_score > game.team1_score %}
+                                        <span class="badge bg-success ms-2">W</span>
+                                    {% endif %}
+                                </h3>
+                                {% if game.is_finished %}
+                                    <h1 class="text-primary fw-bold">{{ game.team2_score }}</h1>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Match Info -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="text-center text-md-start">
+                                <h6 class="text-muted mb-1">Round</h6>
+                                <span class="badge bg-secondary fs-6">{{ game.round_name }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center text-md-end">
+                                <h6 class="text-muted mb-1">Date & Time</h6>
+                                <div>{{ game.game_date.strftime('%A, %B %d, %Y at %H:%M') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction Stats -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h4 class="text-primary mb-0">{{ stats.total_predictions }}</h4>
+                            <small class="text-muted">Total Predictions</small>
+                        </div>
+                        {% if game.is_finished %}
+                        <div class="col-4">
+                            <h4 class="text-success mb-0">{{ stats.correct_predictions }}</h4>
+                            <small class="text-muted">Correct Predictions</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-warning mb-0">{{ stats.perfect_predictions }}</h4>
+                            <small class="text-muted">Perfect Scores (6pts)</small>
+                        </div>
+                        {% else %}
+                        <div class="col-8">
+                            <h6 class="text-muted mb-0">Match not finished yet</h6>
+                            <small class="text-muted">Points will be calculated when the match ends</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Predictions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users"></i> All Player Predictions
+                        <span class="badge bg-secondary ms-2">{{ predictions|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if not predictions %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Predictions</h5>
+                        <p class="text-muted">No players have made predictions for this match yet.</p>
+                    </div>
+                    {% else %}
+                    
+                    <!-- Mobile Card Layout -->
+                    <div class="d-md-none">
+                        {% for prediction in predictions %}
+                        <div class="border-bottom p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('user_profile', user_id=prediction.user.id) }}" class="text-decoration-none">
+                                            {{ prediction.user.name }}
+                                        </a>
+                                    </h6>
+                                    {% if prediction.team1_score is not none %}
+                                        <div class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</div>
+                                        <small class="text-muted">Predicted: {{ prediction.predicted_winner }}</small>
+                                    {% else %}
+                                        <span class="text-muted">No prediction</span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    {% if prediction.points is not none %}
+                                        {% if prediction.points == 6 %}
+                                            <span class="badge bg-success fs-6">{{ prediction.points }} pts</span>
+                                        {% elif prediction.points >= 4 %}
+                                            <span class="badge bg-primary fs-6">{{ prediction.points }} pts</span>
+                                        {% elif prediction.points >= 2 %}
+                                            <span class="badge bg-info fs-6">{{ prediction.points }} pts</span>
+                                        {% elif prediction.points >= 1 %}
+                                            <span class="badge bg-warning fs-6">{{ prediction.points }} pts</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary fs-6">{{ prediction.points }} pts</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Desktop Table Layout -->
+                    <div class="d-none d-md-block">
+                        <div class="table-responsive">
+                            <table class="table table-striped mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Player</th>
+                                        <th>Prediction</th>
+                                        <th>Predicted Winner</th>
+                                        {% if game.is_finished %}
+                                        <th class="text-center">Points Earned</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for prediction in predictions %}
+                                    <tr>
+                                        <td>
+                                            <a href="{{ url_for('user_profile', user_id=prediction.user.id) }}" class="text-decoration-none fw-bold">
+                                                {{ prediction.user.name }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            {% if prediction.team1_score is not none %}
+                                                <span class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</span>
+                                            {% else %}
+                                                <span class="text-muted">No prediction</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if prediction.predicted_winner %}
+                                                {{ prediction.predicted_winner }}
+                                                {% if game.is_finished and prediction.predicted_winner == game.get_winner() %}
+                                                    <i class="fas fa-check text-success ms-1"></i>
+                                                {% elif game.is_finished %}
+                                                    <i class="fas fa-times text-danger ms-1"></i>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        {% if game.is_finished %}
+                                        <td class="text-center">
+                                            {% if prediction.points is not none %}
+                                                {% if prediction.points == 6 %}
+                                                    <span class="badge bg-success fs-6">{{ prediction.points }}</span>
+                                                {% elif prediction.points >= 4 %}
+                                                    <span class="badge bg-primary fs-6">{{ prediction.points }}</span>
+                                                {% elif prediction.points >= 2 %}
+                                                    <span class="badge bg-info fs-6">{{ prediction.points }}</span>
+                                                {% elif prediction.points >= 1 %}
+                                                    <span class="badge bg-warning fs-6">{{ prediction.points }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary fs-6">{{ prediction.points }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add any match detail specific JavaScript here if needed
+</script>
+{% endblock %}

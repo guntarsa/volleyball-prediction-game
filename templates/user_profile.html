@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} - Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Back Button -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Leaderboard
+            </a>
+        </div>
+    </div>
+
+    <!-- User Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h3 class="mb-0">
+                                <i class="fas fa-user"></i> {{ user.name }}
+                                {% if user.is_admin %}
+                                    <span class="badge bg-warning text-dark ms-2">Admin</span>
+                                {% endif %}
+                            </h3>
+                            <small class="text-light">Member since {{ user.created_at.strftime('%B %Y') }}</small>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <h4 class="mb-0">{{ stats.total_score }} points</h4>
+                            <small class="text-light">Total Score</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-primary mb-0">{{ stats.total_predictions }}</h4>
+                                <small class="text-muted">Predictions</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-success mb-0">{{ stats.correct_predictions }}</h4>
+                                <small class="text-muted">Correct</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-info mb-0">{{ stats.accuracy }}%</h4>
+                                <small class="text-muted">Accuracy</small>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <h4 class="text-warning mb-0">{{ stats.tournament_points }}</h4>
+                            <small class="text-muted">Tournament</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Predictions List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> All Predictions
+                        <span class="badge bg-secondary ms-2">{{ predictions|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if not predictions %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Predictions Yet</h5>
+                        <p class="text-muted">{{ user.name }} hasn't made any predictions with passed deadlines.</p>
+                    </div>
+                    {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Match</th>
+                                    <th>Round</th>
+                                    <th>Prediction</th>
+                                    <th>Actual</th>
+                                    <th class="text-center">Points</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prediction in predictions %}
+                                <tr>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ prediction.game.game_date.strftime('%m/%d') }}<br>
+                                            {{ prediction.game.game_date.strftime('%H:%M') }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-2">
+                                                {% if get_country_code(prediction.game.team1) %}
+                                                    <span class="fi fi-{{ get_country_code(prediction.game.team1) }} me-1" style="font-size: 12px;"></span>
+                                                {% endif %}
+                                                <small>{{ prediction.game.team1 }}</small>
+                                            </div>
+                                            <small class="text-muted mx-1">vs</small>
+                                            <div class="ms-2">
+                                                {% if get_country_code(prediction.game.team2) %}
+                                                    <span class="fi fi-{{ get_country_code(prediction.game.team2) }} me-1" style="font-size: 12px;"></span>
+                                                {% endif %}
+                                                <small>{{ prediction.game.team2 }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ prediction.game.round_name }}</span>
+                                    </td>
+                                    <td>
+                                        {% if prediction.team1_score is not none %}
+                                            <span class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</span>
+                                            <br><small class="text-muted">{{ prediction.predicted_winner }}</small>
+                                        {% else %}
+                                            <span class="text-muted">No prediction</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if prediction.game.is_finished %}
+                                            <span class="fw-bold">{{ prediction.game.team1_score }} - {{ prediction.game.team2_score }}</span>
+                                            <br><small class="text-muted">{{ prediction.game.get_winner() }}</small>
+                                        {% else %}
+                                            <span class="text-muted">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if prediction.points is not none %}
+                                            {% if prediction.points == 6 %}
+                                                <span class="badge bg-success fs-6">{{ prediction.points }}</span>
+                                            {% elif prediction.points >= 4 %}
+                                                <span class="badge bg-primary fs-6">{{ prediction.points }}</span>
+                                            {% elif prediction.points >= 2 %}
+                                                <span class="badge bg-info fs-6">{{ prediction.points }}</span>
+                                            {% elif prediction.points >= 1 %}
+                                                <span class="badge bg-warning fs-6">{{ prediction.points }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary fs-6">{{ prediction.points }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add any profile-specific JavaScript here if needed
+</script>
+{% endblock %}

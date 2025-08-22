@@ -368,6 +368,7 @@ def leaderboard():
     user_stats = []
     for user in users:
         stats = {
+            'id': user.id,
             'name': user.name,
             'total_score': user.get_total_score(),
             'total_predictions': user.get_total_predictions(),
@@ -1066,6 +1067,76 @@ def game_predictions(game_id):
         },
         'predictions': predictions_data
     })
+
+@app.route('/user/<int:user_id>')
+@login_required
+def user_profile(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Get all predictions for games with passed deadline, ordered by game date
+    predictions = (Prediction.query
+                  .join(Game)
+                  .filter(Prediction.user_id == user_id)
+                  .filter(Game.prediction_deadline <= datetime.now(timezone.utc))
+                  .order_by(Game.game_date.desc())
+                  .all())
+    
+    # Calculate user stats
+    total_predictions = len([p for p in predictions if p.team1_score is not None])
+    correct_predictions = len([p for p in predictions if p.points and p.points > 0])
+    total_points = sum([p.points for p in predictions if p.points is not None])
+    accuracy = round((correct_predictions / max(total_predictions, 1)) * 100, 1)
+    
+    # Add tournament points if available
+    tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
+    total_score = total_points + tournament_points
+    
+    return render_template('user_profile.html', 
+                         user=user, 
+                         predictions=predictions,
+                         stats={
+                             'total_predictions': total_predictions,
+                             'correct_predictions': correct_predictions,
+                             'total_points': total_points,
+                             'tournament_points': tournament_points,
+                             'total_score': total_score,
+                             'accuracy': accuracy
+                         })
+
+@app.route('/match/<int:game_id>')
+@login_required
+def match_detail(game_id):
+    game = Game.query.get_or_404(game_id)
+    
+    # Only show if prediction deadline has passed
+    if game.prediction_deadline > datetime.now(timezone.utc):
+        flash('Match predictions are not yet visible.', 'warning')
+        return redirect(url_for('predictions'))
+    
+    # Get all predictions for this game
+    predictions = (Prediction.query
+                  .filter_by(game_id=game_id)
+                  .join(User)
+                  .order_by(User.name)
+                  .all())
+    
+    # Calculate some stats
+    total_predictions = len([p for p in predictions if p.team1_score is not None])
+    if game.is_finished:
+        correct_predictions = len([p for p in predictions if p.points and p.points > 0])
+        perfect_predictions = len([p for p in predictions if p.points == 6])
+    else:
+        correct_predictions = 0
+        perfect_predictions = 0
+    
+    return render_template('match_detail.html',
+                         game=game,
+                         predictions=predictions,
+                         stats={
+                             'total_predictions': total_predictions,
+                             'correct_predictions': correct_predictions,
+                             'perfect_predictions': perfect_predictions
+                         })
 
 @app.route('/all_predictions')
 @login_required
