@@ -971,6 +971,73 @@ def get_prediction(game_id):
         })
     return jsonify({'team1_score': '', 'team2_score': ''})
 
+@app.route('/save_prediction_ajax', methods=['POST'])
+@login_required
+def save_prediction_ajax():
+    try:
+        data = request.get_json()
+        game_id = data.get('game_id')
+        team1_score = data.get('team1_score')
+        team2_score = data.get('team2_score')
+        
+        if not all([game_id, team1_score is not None, team2_score is not None]):
+            return jsonify({'success': False, 'error': 'Please fill in all fields'}), 400
+        
+        # Convert to integers
+        game_id = int(game_id)
+        team1_score = int(team1_score)
+        team2_score = int(team2_score)
+        
+        if team1_score < 0 or team2_score < 0:
+            return jsonify({'success': False, 'error': 'Scores cannot be negative'}), 400
+        
+        # Volleyball scoring validation: one team must win 3 sets, other 0-2
+        if not ((team1_score == 3 and team2_score in [0, 1, 2]) or 
+                (team2_score == 3 and team1_score in [0, 1, 2])):
+            return jsonify({'success': False, 'error': 'Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.'}), 400
+        
+        game = Game.query.get(game_id)
+        if not game:
+            return jsonify({'success': False, 'error': 'Game not found'}), 404
+        
+        # Check prediction deadline
+        if not game.is_prediction_open():
+            return jsonify({'success': False, 'error': 'Prediction deadline has passed for this game'}), 400
+        
+        # Check if prediction already exists
+        existing = Prediction.query.filter_by(user_id=current_user.id, game_id=game_id).first()
+        is_update = bool(existing)
+        
+        if existing:
+            existing.team1_score = team1_score
+            existing.team2_score = team2_score
+            existing.predicted_winner = game.team1 if team1_score > team2_score else game.team2
+        else:
+            predicted_winner = game.team1 if team1_score > team2_score else game.team2
+            prediction = Prediction(
+                user_id=current_user.id,
+                game_id=game_id,
+                team1_score=team1_score,
+                team2_score=team2_score,
+                predicted_winner=predicted_winner
+            )
+            db.session.add(prediction)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Prediction updated!' if is_update else 'Prediction saved!',
+            'is_update': is_update,
+            'team1_score': team1_score,
+            'team2_score': team2_score
+        })
+        
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Please enter valid values'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': 'An error occurred while saving your prediction'}), 500
+
 @app.route('/game_predictions/<int:game_id>')
 @login_required
 def game_predictions(game_id):

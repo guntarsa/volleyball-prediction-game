@@ -582,6 +582,13 @@ function addVolleyballValidation(form) {
         // Determine which layout is currently visible
         const isMobile = window.innerWidth < 768;
         
+        // Use AJAX for mobile to avoid page reload and keep focus
+        if (isMobile) {
+            e.preventDefault();
+            handleMobilePredictionSubmit(form);
+            return;
+        }
+        
         // Get the appropriate inputs based on viewport
         let team1Input, team2Input;
         
@@ -840,6 +847,166 @@ function updateFilterButtonStates(activeFilter) {
                 upcomingBtn.classList.add('btn-outline-success');
             }
     }
+}
+
+function handleMobilePredictionSubmit(form) {
+    const gameId = form.querySelector('input[name="game_id"]').value;
+    const team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
+    const team2Input = form.querySelector(`#team2_score_mobile_${gameId}`);
+    const submitBtn = form.querySelector(`#submit_btn_mobile_${gameId}`);
+    const submitText = form.querySelector(`#submit_text_mobile_${gameId}`);
+    const statusDiv = form.querySelector(`#status_mobile_${gameId}`);
+    const statusText = form.querySelector(`#status_text_mobile_${gameId}`);
+    
+    if (!team1Input || !team2Input) {
+        showMobileError('Form inputs not found');
+        return;
+    }
+    
+    const team1Value = team1Input.value.trim();
+    const team2Value = team2Input.value.trim();
+    
+    // Validate inputs
+    if (!team1Value || !team2Value) {
+        showMobileError('Please fill in both score fields');
+        team1Input.classList.add('is-invalid');
+        team2Input.classList.add('is-invalid');
+        return;
+    }
+    
+    const team1Score = parseInt(team1Value);
+    const team2Score = parseInt(team2Value);
+    
+    if (isNaN(team1Score) || isNaN(team2Score) || 
+        team1Score < 0 || team1Score > 3 || 
+        team2Score < 0 || team2Score > 3) {
+        showMobileError('Please enter valid scores between 0 and 3');
+        team1Input.classList.add('is-invalid');
+        team2Input.classList.add('is-invalid');
+        return;
+    }
+    
+    // Check volleyball scoring
+    const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
+                   (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
+    
+    if (!isValid) {
+        showMobileError('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
+        team1Input.classList.add('is-invalid');
+        team2Input.classList.add('is-invalid');
+        return;
+    }
+    
+    // Clear validation styling
+    team1Input.classList.remove('is-invalid');
+    team2Input.classList.remove('is-invalid');
+    
+    // Show loading state
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        const originalText = submitText ? submitText.textContent : 'Save';
+        if (submitText) submitText.textContent = 'Saving...';
+        
+        // Make AJAX request
+        fetch('/save_prediction_ajax', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                game_id: gameId,
+                team1_score: team1Score,
+                team2_score: team2Score
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                showMobileSuccess(data.message, statusDiv, statusText);
+                
+                // Update button appearance
+                if (submitText) submitText.textContent = data.is_update ? 'Update Prediction' : 'Save Prediction';
+                if (submitBtn) {
+                    submitBtn.classList.remove('btn-success');
+                    submitBtn.classList.add('btn-warning');
+                    const icon = submitBtn.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-save');
+                        icon.classList.add('fa-edit');
+                    }
+                }
+                
+                // Add visual feedback to inputs
+                team1Input.classList.add('is-valid');
+                team2Input.classList.add('is-valid');
+                setTimeout(() => {
+                    team1Input.classList.remove('is-valid');
+                    team2Input.classList.remove('is-valid');
+                }, 3000);
+                
+            } else {
+                showMobileError(data.error || 'Failed to save prediction');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving prediction:', error);
+            showMobileError('Network error. Please try again.');
+        })
+        .finally(() => {
+            // Reset button state
+            if (submitBtn) submitBtn.disabled = false;
+            if (submitText && !submitText.textContent.includes('Update')) {
+                submitText.textContent = originalText;
+            }
+        });
+    }
+}
+
+function showMobileSuccess(message, statusDiv, statusText) {
+    if (statusDiv && statusText) {
+        statusText.textContent = message;
+        statusDiv.style.display = 'block';
+        statusDiv.querySelector('.alert').className = 'alert alert-success py-2 mb-0';
+        
+        // Auto-hide after 4 seconds
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 4000);
+    }
+}
+
+function showMobileError(message) {
+    // Create a temporary error toast
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-danger position-fixed';
+    toast.style.cssText = 'top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; max-width: 90%; animation: fadeInOut 4s ease-in-out forwards;';
+    toast.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
+    
+    // Add CSS animation if not exists
+    if (!document.querySelector('#mobile-toast-animation')) {
+        const style = document.createElement('style');
+        style.id = 'mobile-toast-animation';
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+                15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 4000);
 }
 
 function handleGameAnchor() {
