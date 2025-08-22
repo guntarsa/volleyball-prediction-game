@@ -81,7 +81,7 @@
                         <div class="col-md-6">
                             <div class="text-center text-md-end">
                                 <h6 class="text-muted mb-1">Date & Time</h6>
-                                <div>{{ game.game_date.strftime('%A, %B %d, %Y at %H:%M') }}</div>
+                                <div>{{ game.game_date | riga_datetime('%A, %B %d, %Y at %H:%M') }}</div>
                             </div>
                         </div>
                     </div>

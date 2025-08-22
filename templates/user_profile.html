@@ -26,7 +26,7 @@
                                     <span class="badge bg-warning text-dark ms-2">Admin</span>
                                 {% endif %}
                             </h3>
-                            <small class="text-light">Member since {{ user.created_at.strftime('%B %Y') }}</small>
+                            <small class="text-light">Member since {{ user.created_at | riga_datetime('%B %Y') }}</small>
                         </div>
                         <div class="col-md-4 text-md-end">
                             <h4 class="mb-0">{{ stats.total_score }} points</h4>
@@ -99,8 +99,8 @@
                                 <tr>
                                     <td>
                                         <small class="text-muted">
-                                            {{ prediction.game.game_date.strftime('%m/%d') }}<br>
-                                            {{ prediction.game.game_date.strftime('%H:%M') }}
+                                            {{ prediction.game.game_date | riga_datetime('%m/%d') }}<br>
+                                            {{ prediction.game.game_date | riga_time }}
                                         </small>
                                     </td>
                                     <td>
