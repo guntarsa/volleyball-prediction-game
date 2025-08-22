@@ -705,6 +705,7 @@ def update_result():
         return redirect(url_for('admin'))
     
     try:
+        game_id = int(game_id)
         team1_score = int(team1_score)
         team2_score = int(team2_score)
         if team1_score < 0 or team2_score < 0:

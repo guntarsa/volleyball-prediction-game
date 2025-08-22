@@ -336,9 +336,68 @@
             
         </form>
         {% else %}
-        <div class="alert alert-warning text-center">
+        <!-- Locked Game Display -->
+        <div class="alert alert-warning text-center mb-3">
             <i class="fas fa-lock"></i>
             Prediction deadline has passed for this game
+        </div>
+        
+        <!-- Team Display for Locked Games -->
+        <!-- Desktop Layout -->
+        <div class="row text-center mb-3 d-none d-md-flex">
+            <!-- Team 1 -->
+            <div class="col-5">
+                <div class="d-flex flex-column align-items-center">
+                    <h5 class="mb-2 text-primary">
+                        {% if get_country_code(game.team1) %}
+                            <span class="fi fi-{{ get_country_code(game.team1) }} team-flag me-2"></span>
+                        {% endif %}
+                        {{ game.team1 }}
+                    </h5>
+                </div>
+            </div>
+            
+            <!-- VS -->
+            <div class="col-2 d-flex align-items-center justify-content-center">
+                <span class="h4 text-muted fw-bold">VS</span>
+            </div>
+            
+            <!-- Team 2 -->
+            <div class="col-5">
+                <div class="d-flex flex-column align-items-center">
+                    <h5 class="mb-2 text-primary">
+                        {% if get_country_code(game.team2) %}
+                            <span class="fi fi-{{ get_country_code(game.team2) }} team-flag me-2"></span>
+                        {% endif %}
+                        {{ game.team2 }}
+                    </h5>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile Layout -->
+        <div class="d-md-none mb-3">
+            <div class="text-center">
+                <div class="mb-2">
+                    <h6 class="text-primary mb-1">
+                        {% if get_country_code(game.team1) %}
+                            <span class="fi fi-{{ get_country_code(game.team1) }} team-flag me-1"></span>
+                        {% endif %}
+                        {{ game.team1 }}
+                    </h6>
+                </div>
+                <div class="mb-2">
+                    <span class="text-muted">vs</span>
+                </div>
+                <div class="mb-2">
+                    <h6 class="text-primary mb-1">
+                        {% if get_country_code(game.team2) %}
+                            <span class="fi fi-{{ get_country_code(game.team2) }} team-flag me-1"></span>
+                        {% endif %}
+                        {{ game.team2 }}
+                    </h6>
+                </div>
+            </div>
         </div>
         
         {% if game.are_predictions_visible() %}
