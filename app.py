@@ -1,12 +1,29 @@
 import os
 import csv
 from datetime import datetime, timezone
+import pytz
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
+
+# Riga timezone
+RIGA_TZ = pytz.timezone('Europe/Riga')
+
+def get_riga_time():
+    """Get current time in Riga timezone"""
+    return datetime.now(RIGA_TZ)
+
+def to_riga_time(dt):
+    """Convert datetime to Riga timezone"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Assume naive datetimes are in Riga timezone
+        return RIGA_TZ.localize(dt)
+    return dt.astimezone(RIGA_TZ)
 
 app = Flask(__name__)
 
@@ -126,12 +143,14 @@ class Game(db.Model):
     predictions = db.relationship('Prediction', backref='game', lazy=True, cascade='all, delete-orphan')
     
     def is_prediction_open(self):
-        current_time = datetime.now(timezone.utc)
-        deadline = self.prediction_deadline.replace(tzinfo=timezone.utc) if self.prediction_deadline.tzinfo is None else self.prediction_deadline
+        current_time = get_riga_time()
+        deadline = to_riga_time(self.prediction_deadline)
         return current_time < deadline
     
     def are_predictions_visible(self):
-        return datetime.now(timezone.utc) >= self.prediction_deadline.replace(tzinfo=timezone.utc)
+        current_time = get_riga_time()
+        deadline = to_riga_time(self.prediction_deadline)
+        return current_time >= deadline
     
     def get_winner(self):
         if self.team1_score is not None and self.team2_score is not None:
@@ -184,8 +203,8 @@ class TournamentConfig(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def is_prediction_open(self):
-        current_time = datetime.now(timezone.utc)
-        deadline = self.prediction_deadline.replace(tzinfo=timezone.utc) if self.prediction_deadline.tzinfo is None else self.prediction_deadline
+        current_time = get_riga_time()
+        deadline = to_riga_time(self.prediction_deadline)
         return current_time < deadline
     
     def are_results_available(self):
@@ -423,9 +442,9 @@ def make_prediction():
         flash('Game not found', 'error')
         return redirect(url_for('predictions'))
     
-    # Check prediction deadline - more robust check
-    current_time = datetime.now(timezone.utc)
-    deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+    # Check prediction deadline - using Riga timezone
+    current_time = get_riga_time()
+    deadline = to_riga_time(game.prediction_deadline)
     
     if current_time >= deadline:
         flash('Prediction deadline has passed for this game', 'error')
@@ -1008,9 +1027,9 @@ def save_prediction_ajax():
         if not game:
             return jsonify({'success': False, 'error': 'Game not found'}), 404
         
-        # Check prediction deadline - more robust check
-        current_time = datetime.now(timezone.utc)
-        deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+        # Check prediction deadline - using Riga timezone
+        current_time = get_riga_time()
+        deadline = to_riga_time(game.prediction_deadline)
         
         if current_time >= deadline:
             return jsonify({'success': False, 'error': 'Prediction deadline has passed for this game'}), 400
@@ -1084,12 +1103,19 @@ def user_profile(user_id):
     user = User.query.get_or_404(user_id)
     
     # Get all predictions for games with passed deadline, ordered by game date
-    predictions = (Prediction.query
-                  .join(Game)
-                  .filter(Prediction.user_id == user_id)
-                  .filter(Game.prediction_deadline <= datetime.now(timezone.utc))
-                  .order_by(Game.game_date.desc())
-                  .all())
+    # Filter in Python to handle Riga timezone properly
+    all_predictions = (Prediction.query
+                      .join(Game)
+                      .filter(Prediction.user_id == user_id)
+                      .order_by(Game.game_date.desc())
+                      .all())
+    
+    current_time = get_riga_time()
+    predictions = []
+    for pred in all_predictions:
+        deadline = to_riga_time(pred.game.prediction_deadline)
+        if current_time >= deadline:
+            predictions.append(pred)
     
     # Calculate user stats
     total_predictions = len([p for p in predictions if p.team1_score is not None])
@@ -1118,8 +1144,10 @@ def user_profile(user_id):
 def match_detail(game_id):
     game = Game.query.get_or_404(game_id)
     
-    # Only show if prediction deadline has passed
-    if game.prediction_deadline > datetime.now(timezone.utc):
+    # Only show if prediction deadline has passed - using Riga timezone
+    current_time = get_riga_time()
+    deadline = to_riga_time(game.prediction_deadline)
+    if current_time < deadline:
         flash('Match predictions are not yet visible.', 'warning')
         return redirect(url_for('predictions'))
     
@@ -1155,14 +1183,14 @@ def all_predictions():
     selected_date = request.args.get('date')
     selected_pool = request.args.get('pool')
     
-    # Base query: only games where deadline has passed - use robust timezone handling
-    current_time = datetime.now(timezone.utc)
-    # Get all games and filter in Python to handle timezone issues properly
+    # Base query: only games where deadline has passed - using Riga timezone
+    current_time = get_riga_time()
+    # Get all games and filter in Python to handle Riga timezone properly
     all_games = Game.query.all()
     games_with_passed_deadlines = []
     
     for game in all_games:
-        deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+        deadline = to_riga_time(game.prediction_deadline)
         if current_time >= deadline:
             games_with_passed_deadlines.append(game.id)
     
