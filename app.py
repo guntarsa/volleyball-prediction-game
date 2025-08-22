@@ -126,7 +126,9 @@ class Game(db.Model):
     predictions = db.relationship('Prediction', backref='game', lazy=True, cascade='all, delete-orphan')
     
     def is_prediction_open(self):
-        return datetime.now(timezone.utc) < self.prediction_deadline.replace(tzinfo=timezone.utc)
+        current_time = datetime.now(timezone.utc)
+        deadline = self.prediction_deadline.replace(tzinfo=timezone.utc) if self.prediction_deadline.tzinfo is None else self.prediction_deadline
+        return current_time < deadline
     
     def are_predictions_visible(self):
         return datetime.now(timezone.utc) >= self.prediction_deadline.replace(tzinfo=timezone.utc)
@@ -182,7 +184,9 @@ class TournamentConfig(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def is_prediction_open(self):
-        return datetime.now(timezone.utc) < self.prediction_deadline.replace(tzinfo=timezone.utc)
+        current_time = datetime.now(timezone.utc)
+        deadline = self.prediction_deadline.replace(tzinfo=timezone.utc) if self.prediction_deadline.tzinfo is None else self.prediction_deadline
+        return current_time < deadline
     
     def are_results_available(self):
         return self.is_finalized and all([self.first_place_result, self.second_place_result, self.third_place_result])
@@ -419,8 +423,11 @@ def make_prediction():
         flash('Game not found', 'error')
         return redirect(url_for('predictions'))
     
-    # Check prediction deadline
-    if not game.is_prediction_open():
+    # Check prediction deadline - more robust check
+    current_time = datetime.now(timezone.utc)
+    deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+    
+    if current_time >= deadline:
         flash('Prediction deadline has passed for this game', 'error')
         return redirect(url_for('predictions', anchor=f'game_{game_id}'))
     
@@ -1001,8 +1008,11 @@ def save_prediction_ajax():
         if not game:
             return jsonify({'success': False, 'error': 'Game not found'}), 404
         
-        # Check prediction deadline
-        if not game.is_prediction_open():
+        # Check prediction deadline - more robust check
+        current_time = datetime.now(timezone.utc)
+        deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+        
+        if current_time >= deadline:
             return jsonify({'success': False, 'error': 'Prediction deadline has passed for this game'}), 400
         
         # Check if prediction already exists
@@ -1145,8 +1155,19 @@ def all_predictions():
     selected_date = request.args.get('date')
     selected_pool = request.args.get('pool')
     
-    # Base query: only games where deadline has passed
-    games_query = Game.query.filter(Game.prediction_deadline <= datetime.now(timezone.utc))
+    # Base query: only games where deadline has passed - use robust timezone handling
+    current_time = datetime.now(timezone.utc)
+    # Get all games and filter in Python to handle timezone issues properly
+    all_games = Game.query.all()
+    games_with_passed_deadlines = []
+    
+    for game in all_games:
+        deadline = game.prediction_deadline.replace(tzinfo=timezone.utc) if game.prediction_deadline.tzinfo is None else game.prediction_deadline
+        if current_time >= deadline:
+            games_with_passed_deadlines.append(game.id)
+    
+    # Now query with the filtered game IDs
+    games_query = Game.query.filter(Game.id.in_(games_with_passed_deadlines)) if games_with_passed_deadlines else Game.query.filter(False)
     
     # Apply date filter if provided
     if selected_date:
@@ -1183,10 +1204,10 @@ def all_predictions():
             'total_predictions': len(predictions_data)
         })
     
-    # Get unique dates and pools for filtering
-    all_games = Game.query.filter(Game.prediction_deadline <= datetime.now(timezone.utc)).all()
-    unique_dates = sorted(list(set(game.game_date.date() for game in all_games)), reverse=True) if all_games else []
-    unique_pools = sorted(list(set(game.round_name for game in all_games))) if all_games else []
+    # Get unique dates and pools for filtering - use games with passed deadlines
+    filtered_games = [game for game in all_games if game.id in games_with_passed_deadlines] if games_with_passed_deadlines else []
+    unique_dates = sorted(list(set(game.game_date.date() for game in filtered_games)), reverse=True) if filtered_games else []
+    unique_pools = sorted(list(set(game.round_name for game in filtered_games))) if filtered_games else []
     
     return render_template('all_predictions.html', 
                          games_with_predictions=games_with_predictions,

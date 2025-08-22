@@ -389,6 +389,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle URL anchor to scroll to specific game
     handleGameAnchor();
+    
+    // Check deadline status periodically
+    checkDeadlineStatus();
+    setInterval(checkDeadlineStatus, 60000); // Check every minute
 });
 
 function loadUserPrediction(gameId) {
@@ -590,6 +594,14 @@ function addVolleyballValidation(form) {
         if (isMobile) {
             e.preventDefault();
             handleMobilePredictionSubmit(form);
+            return;
+        }
+        
+        // Check if deadline has passed by looking for disabled submit button
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn && submitBtn.disabled) {
+            e.preventDefault();
+            alert('Prediction deadline has passed for this game');
             return;
         }
         
@@ -853,6 +865,38 @@ function updateFilterButtonStates(activeFilter) {
     }
 }
 
+function checkDeadlineStatus() {
+    // Check if any prediction forms should be disabled due to passed deadlines
+    document.querySelectorAll('.prediction-form').forEach(form => {
+        const gameId = form.querySelector('input[name="game_id"]').value;
+        const gameCard = form.closest('.game-card');
+        const deadlineText = gameCard.querySelector('small');
+        
+        // Check if deadline has passed by looking for "Predictions Locked" text
+        if (deadlineText && deadlineText.textContent.includes('Predictions Locked')) {
+            disablePredictionForm(form, gameId);
+        }
+    });
+}
+
+function disablePredictionForm(form, gameId) {
+    // Disable all inputs and buttons in the form
+    const inputs = form.querySelectorAll('input[type="number"]');
+    const buttons = form.querySelectorAll('button[type="submit"]');
+    
+    inputs.forEach(input => {
+        input.disabled = true;
+        input.style.backgroundColor = '#f8f9fa';
+    });
+    
+    buttons.forEach(button => {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-lock"></i> Deadline Passed';
+        button.classList.remove('btn-success', 'btn-warning');
+        button.classList.add('btn-secondary');
+    });
+}
+
 function handleMobilePredictionSubmit(form) {
     const gameId = form.querySelector('input[name="game_id"]').value;
     const team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
@@ -861,6 +905,12 @@ function handleMobilePredictionSubmit(form) {
     const submitText = form.querySelector(`#submit_text_mobile_${gameId}`);
     const statusDiv = form.querySelector(`#status_mobile_${gameId}`);
     const statusText = form.querySelector(`#status_text_mobile_${gameId}`);
+    
+    // Check if form is disabled (deadline passed)
+    if (submitBtn && submitBtn.disabled) {
+        showMobileError('Prediction deadline has passed for this game');
+        return;
+    }
     
     if (!team1Input || !team2Input) {
         showMobileError('Form inputs not found');
