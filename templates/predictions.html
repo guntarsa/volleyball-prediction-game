@@ -586,9 +586,10 @@ function addVolleyballValidation(form) {
         let team1Input, team2Input;
         
         if (isMobile) {
-            // Use mobile inputs (they don't have required attribute)
-            team1Input = form.querySelector('input[id*="_mobile_"]');
-            team2Input = form.querySelector('input[id*="_mobile_"]:last-of-type');
+            // Use mobile inputs - get the specific mobile inputs for this form
+            const gameId = form.querySelector('input[name="game_id"]').value;
+            team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
+            team2Input = form.querySelector(`#team2_score_mobile_${gameId}`);
         } else {
             // Use desktop inputs
             team1Input = form.querySelector('input[name="team1_score"]:not([id*="_mobile_"])');
