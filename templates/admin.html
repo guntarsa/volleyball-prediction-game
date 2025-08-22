@@ -318,6 +318,120 @@ Dominican Republic,do
     </div>
 </div>
 
+<!-- Manage Predictions Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-edit"></i>
+                    Manage User Predictions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Admin Override:</strong> Create or update predictions for any user, even after deadline has passed.
+                </div>
+                
+                <form method="POST" action="{{ url_for('admin_manage_prediction') }}" id="predictionForm">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="user_id" class="form-label">Select User:</label>
+                                <select name="user_id" id="user_id" class="form-select" required onchange="loadPrediction()">
+                                    <option value="">-- Select User --</option>
+                                    {% for user in users %}
+                                        <option value="{{ user.id }}">{{ user.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="game_id" class="form-label">Select Game:</label>
+                                <select name="game_id" id="game_id" class="form-select" required onchange="loadPrediction()">
+                                    <option value="">-- Select Game --</option>
+                                    {% for game in games %}
+                                        <option value="{{ game.id }}" 
+                                                data-team1="{{ game.team1 }}" 
+                                                data-team2="{{ game.team2 }}"
+                                                data-finished="{{ 'true' if game.is_finished else 'false' }}"
+                                                data-deadline-passed="{{ 'true' if not game.is_prediction_open() else 'false' }}">
+                                            {{ game.team1 }} vs {{ game.team2 }} - {{ game.game_date.strftime('%m/%d %H:%M') }}
+                                            {% if not game.is_prediction_open() %}
+                                                <span class="text-danger">(Deadline Passed)</span>
+                                            {% endif %}
+                                            {% if game.is_finished %}
+                                                <span class="text-success">(Finished)</span>
+                                            {% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label for="team1_score" class="form-label">
+                                    <span id="team1_name">Team 1</span> Score:
+                                </label>
+                                <input type="number" name="team1_score" id="team1_score" class="form-control" 
+                                       min="0" max="3" required placeholder="0-3">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label for="team2_score" class="form-label">
+                                    <span id="team2_name">Team 2</span> Score:
+                                </label>
+                                <input type="number" name="team2_score" id="team2_score" class="form-control" 
+                                       min="0" max="3" required placeholder="0-3">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label class="form-label">Action:</label>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary" id="predictionSubmitBtn">
+                                        <i class="fas fa-save"></i> Save Prediction
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Prediction Display -->
+                    <div id="currentPrediction" class="mt-3" style="display: none;">
+                        <div class="alert alert-secondary">
+                            <strong>Current Prediction:</strong>
+                            <span id="currentPredictionText"></span>
+                            <span id="currentPoints" class="ms-2"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Game Status Display -->
+                    <div id="gameStatus" class="mt-2" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> 
+                                    Deadline Status: <span id="deadlineStatus"></span>
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-trophy"></i> 
+                                    Game Status: <span id="finishedStatus"></span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
@@ -855,5 +969,137 @@ function confirmTeamDelete(teamId, teamName) {
     
     new bootstrap.Modal(document.getElementById('deleteTeamModal')).show();
 }
+
+// Prediction Management Functions
+function loadPrediction() {
+    const userSelect = document.getElementById('user_id');
+    const gameSelect = document.getElementById('game_id');
+    const team1ScoreInput = document.getElementById('team1_score');
+    const team2ScoreInput = document.getElementById('team2_score');
+    const team1NameSpan = document.getElementById('team1_name');
+    const team2NameSpan = document.getElementById('team2_name');
+    const currentPredictionDiv = document.getElementById('currentPrediction');
+    const gameStatusDiv = document.getElementById('gameStatus');
+    const deadlineStatusSpan = document.getElementById('deadlineStatus');
+    const finishedStatusSpan = document.getElementById('finishedStatus');
+    const currentPredictionText = document.getElementById('currentPredictionText');
+    const currentPointsSpan = document.getElementById('currentPoints');
+    
+    if (!userSelect.value || !gameSelect.value) {
+        currentPredictionDiv.style.display = 'none';
+        gameStatusDiv.style.display = 'none';
+        team1ScoreInput.value = '';
+        team2ScoreInput.value = '';
+        team1NameSpan.textContent = 'Team 1';
+        team2NameSpan.textContent = 'Team 2';
+        return;
+    }
+    
+    // Update team names
+    const selectedOption = gameSelect.options[gameSelect.selectedIndex];
+    const team1 = selectedOption.dataset.team1;
+    const team2 = selectedOption.dataset.team2;
+    const isFinished = selectedOption.dataset.finished === 'true';
+    const deadlinePassed = selectedOption.dataset.deadlinePassed === 'true';
+    
+    team1NameSpan.textContent = team1;
+    team2NameSpan.textContent = team2;
+    
+    // Show game status
+    gameStatusDiv.style.display = 'block';
+    deadlineStatusSpan.innerHTML = deadlinePassed 
+        ? '<span class="text-danger">Passed</span>' 
+        : '<span class="text-success">Open</span>';
+    finishedStatusSpan.innerHTML = isFinished 
+        ? '<span class="text-success">Finished</span>' 
+        : '<span class="text-warning">Upcoming</span>';
+    
+    // Fetch existing prediction
+    fetch(`/admin/get_prediction?user_id=${userSelect.value}&game_id=${gameSelect.value}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.team1_score !== '' && data.team2_score !== '') {
+                    // Show existing prediction
+                    currentPredictionDiv.style.display = 'block';
+                    currentPredictionText.textContent = `${data.team1_score} - ${data.team2_score}`;
+                    if (data.points !== null) {
+                        currentPointsSpan.innerHTML = `<span class="badge bg-info">${data.points} points</span>`;
+                    } else {
+                        currentPointsSpan.innerHTML = '<span class="badge bg-secondary">Not scored yet</span>';
+                    }
+                    
+                    // Pre-fill form with existing values
+                    team1ScoreInput.value = data.team1_score;
+                    team2ScoreInput.value = data.team2_score;
+                } else {
+                    // No existing prediction
+                    currentPredictionDiv.style.display = 'block';
+                    currentPredictionText.textContent = 'No prediction exists';
+                    currentPointsSpan.innerHTML = '<span class="badge bg-light text-dark">New prediction</span>';
+                    team1ScoreInput.value = '';
+                    team2ScoreInput.value = '';
+                }
+            } else {
+                console.error('Error loading prediction:', data.error);
+                currentPredictionDiv.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            currentPredictionDiv.style.display = 'none';
+        });
+}
+
+// Add volleyball score validation for prediction form
+document.addEventListener('DOMContentLoaded', function() {
+    const predictionForm = document.getElementById('predictionForm');
+    if (predictionForm) {
+        const team1Input = predictionForm.querySelector('#team1_score');
+        const team2Input = predictionForm.querySelector('#team2_score');
+        
+        function validatePredictionScore() {
+            const team1Score = parseInt(team1Input.value) || 0;
+            const team2Score = parseInt(team2Input.value) || 0;
+            
+            const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
+                           (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
+            
+            if (team1Input.value && team2Input.value) {
+                if (isValid) {
+                    team1Input.classList.remove('is-invalid');
+                    team2Input.classList.remove('is-invalid');
+                    team1Input.classList.add('is-valid');
+                    team2Input.classList.add('is-valid');
+                } else {
+                    team1Input.classList.remove('is-valid');
+                    team2Input.classList.remove('is-valid');
+                    team1Input.classList.add('is-invalid');
+                    team2Input.classList.add('is-invalid');
+                }
+            } else {
+                team1Input.classList.remove('is-valid', 'is-invalid');
+                team2Input.classList.remove('is-valid', 'is-invalid');
+            }
+        }
+        
+        team1Input.addEventListener('input', validatePredictionScore);
+        team2Input.addEventListener('input', validatePredictionScore);
+        
+        // Prevent form submission with invalid scores
+        predictionForm.addEventListener('submit', function(e) {
+            const team1Score = parseInt(team1Input.value) || 0;
+            const team2Score = parseInt(team2Input.value) || 0;
+            
+            const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
+                           (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

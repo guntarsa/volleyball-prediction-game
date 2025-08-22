@@ -1270,6 +1270,121 @@ def all_predictions():
                          selected_date=selected_date,
                          selected_pool=selected_pool)
 
+@app.route('/admin/manage_prediction', methods=['POST'])
+@login_required
+@admin_required
+def admin_manage_prediction():
+    user_id = request.form.get('user_id')
+    game_id = request.form.get('game_id')
+    team1_score = request.form.get('team1_score')
+    team2_score = request.form.get('team2_score')
+    
+    if not all([user_id, game_id, team1_score, team2_score]):
+        flash('Please fill in all fields', 'error')
+        return redirect(url_for('admin'))
+    
+    try:
+        # Convert all form data to appropriate types
+        user_id = int(user_id)
+        game_id = int(game_id)
+        team1_score = int(team1_score)
+        team2_score = int(team2_score)
+        
+        if team1_score < 0 or team2_score < 0:
+            raise ValueError("Scores cannot be negative")
+        
+        # Volleyball scoring validation: one team must win 3 sets, other 0-2
+        if not ((team1_score == 3 and team2_score in [0, 1, 2]) or 
+                (team2_score == 3 and team1_score in [0, 1, 2])):
+            raise ValueError("Invalid volleyball score")
+            
+    except ValueError as e:
+        if "Invalid volleyball score" in str(e):
+            flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
+        else:
+            flash('Please enter valid values', 'error')
+        return redirect(url_for('admin'))
+    
+    # Verify user and game exist
+    user = User.query.get(user_id)
+    game = Game.query.get(game_id)
+    
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('admin'))
+    
+    if not game:
+        flash('Game not found', 'error')
+        return redirect(url_for('admin'))
+    
+    # Check if prediction already exists
+    existing = Prediction.query.filter_by(user_id=user_id, game_id=game_id).first()
+    
+    predicted_winner = game.team1 if team1_score > team2_score else game.team2
+    
+    if existing:
+        existing.team1_score = team1_score
+        existing.team2_score = team2_score
+        existing.predicted_winner = predicted_winner
+        
+        # Recalculate points if game is finished
+        if game.is_finished:
+            existing.points = calculate_points(existing, game)
+        
+        flash(f'Prediction updated for {user.name}: {game.team1} vs {game.team2}', 'success')
+    else:
+        prediction = Prediction(
+            user_id=user_id,
+            game_id=game_id,
+            team1_score=team1_score,
+            team2_score=team2_score,
+            predicted_winner=predicted_winner
+        )
+        
+        # Calculate points if game is finished
+        if game.is_finished:
+            prediction.points = calculate_points(prediction, game)
+        
+        db.session.add(prediction)
+        flash(f'Prediction created for {user.name}: {game.team1} vs {game.team2}', 'success')
+    
+    db.session.commit()
+    return redirect(url_for('admin'))
+
+@app.route('/admin/get_prediction', methods=['GET'])
+@login_required
+@admin_required
+def admin_get_prediction():
+    user_id = request.args.get('user_id')
+    game_id = request.args.get('game_id')
+    
+    if not user_id or not game_id:
+        return jsonify({'success': False, 'error': 'Missing parameters'})
+    
+    try:
+        user_id = int(user_id)
+        game_id = int(game_id)
+        
+        prediction = Prediction.query.filter_by(user_id=user_id, game_id=game_id).first()
+        
+        if prediction:
+            return jsonify({
+                'success': True,
+                'team1_score': prediction.team1_score,
+                'team2_score': prediction.team2_score,
+                'points': prediction.points
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'team1_score': '',
+                'team2_score': '',
+                'points': None
+            })
+            
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid parameters'})
+
 # Initialize database
 with app.app_context():
     try:
