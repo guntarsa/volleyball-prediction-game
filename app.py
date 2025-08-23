@@ -676,11 +676,9 @@ def upload_games():
                         except ValueError:
                             flash(f'Invalid prediction deadline format: {row["prediction_deadline"]}', 'error')
                             # Default: 30 minutes before game start
-                            from datetime import timedelta
                             prediction_deadline = game_date - timedelta(minutes=30)
                 else:
                     # Default: 30 minutes before game start
-                    from datetime import timedelta
                     prediction_deadline = game_date - timedelta(minutes=30)
                 
                 # Check if game already exists
