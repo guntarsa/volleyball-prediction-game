@@ -150,10 +150,49 @@ class User(UserMixin, db.Model):
         return match_points + tournament_points
     
     def get_total_predictions(self):
-        return len([p for p in self.predictions if p.team1_score is not None])
+        """Count only predictions for finished games"""
+        return len([p for p in self.predictions 
+                   if p.team1_score is not None 
+                   and p.game.is_finished 
+                   and p.points is not None])
     
     def get_correct_predictions(self):
-        return len([p for p in self.predictions if p.points and p.points > 0])
+        """Count only predictions with 2+ points (truly correct predictions)"""
+        return len([p for p in self.predictions 
+                   if p.points is not None 
+                   and p.points >= 2
+                   and p.game.is_finished])
+    
+    def get_finished_predictions(self):
+        """Get all predictions for finished games"""
+        return [p for p in self.predictions 
+                if p.game.is_finished 
+                and p.team1_score is not None 
+                and p.points is not None]
+    
+    def get_accuracy_percentage(self):
+        """Calculate accuracy percentage based on finished games only"""
+        finished_predictions = self.get_finished_predictions()
+        if not finished_predictions:
+            return 0.0
+        
+        correct_count = len([p for p in finished_predictions if p.points >= 2])
+        return round((correct_count / len(finished_predictions)) * 100, 1)
+    
+    def get_prediction_breakdown(self):
+        """Get detailed breakdown of prediction performance"""
+        finished_predictions = self.get_finished_predictions()
+        
+        return {
+            'total_finished': len(finished_predictions),
+            'perfect_6pts': len([p for p in finished_predictions if p.points == 6]),
+            'winner_plus_score_4pts': len([p for p in finished_predictions if p.points == 4]),
+            'winner_only_2pts': len([p for p in finished_predictions if p.points == 2]),
+            'partial_1pt': len([p for p in finished_predictions if p.points == 1]),
+            'wrong_0pts': len([p for p in finished_predictions if p.points == 0]),
+            'correct_predictions': len([p for p in finished_predictions if p.points >= 2]),
+            'accuracy': round((len([p for p in finished_predictions if p.points >= 2]) / max(len(finished_predictions), 1)) * 100, 1)
+        }
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -421,7 +460,7 @@ def leaderboard():
             'total_score': user.get_total_score(),
             'total_predictions': user.get_total_predictions(),
             'correct_predictions': user.get_correct_predictions(),
-            'accuracy': round((user.get_correct_predictions() / max(user.get_total_predictions(), 1)) * 100, 1)
+            'accuracy': user.get_accuracy_percentage()
         }
         user_stats.append(stats)
     
@@ -1143,11 +1182,11 @@ def user_profile(user_id):
         if current_time >= deadline:
             predictions.append(pred)
     
-    # Calculate user stats
-    total_predictions = len([p for p in predictions if p.team1_score is not None])
-    correct_predictions = len([p for p in predictions if p.points and p.points > 0])
+    # Calculate user stats using the updated methods
+    total_predictions = user.get_total_predictions()
+    correct_predictions = user.get_correct_predictions()
     total_points = sum([p.points for p in predictions if p.points is not None])
-    accuracy = round((correct_predictions / max(total_predictions, 1)) * 100, 1)
+    accuracy = user.get_accuracy_percentage()
     
     # Add tournament points if available
     tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
