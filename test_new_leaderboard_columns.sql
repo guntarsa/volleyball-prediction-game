@@ -14,12 +14,12 @@ SELECT
     -- Total Score (unchanged)
     COALESCE(SUM(p.points), 0) as total_score,
     
-    -- NEW COLUMN: All Predictions (with passed deadlines)
+    -- NEW COLUMN: All Predictions (all filled out, regardless of deadline)
     COUNT(CASE 
         WHEN p.team1_score IS NOT NULL 
-         AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'Europe/Riga' - g.prediction_deadline)) > 0
+         AND p.team2_score IS NOT NULL
         THEN 1 
-    END) as all_predictions_passed,
+    END) as all_predictions_filled,
     
     -- Finished Games (only finished games)
     COUNT(CASE 
@@ -59,8 +59,8 @@ SELECT '=== COLUMN EXPLANATIONS ===' as explanations_header;
 
 SELECT 
     'All Predictions' as column_name,
-    'Predictions made where deadline has passed (includes unfinished games)' as description,
-    'Shows total participation regardless of game completion' as purpose;
+    'All predictions filled out by user (regardless of deadline status)' as description,
+    'Shows total user participation and engagement' as purpose;
 
 SELECT 
     'Finished Games' as column_name,
@@ -91,9 +91,9 @@ SELECT
     COALESCE(p.points, 0) as points,
     -- Show how each prediction is categorized
     CASE 
-        WHEN p.team1_score IS NOT NULL AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'Europe/Riga' - g.prediction_deadline)) > 0 
+        WHEN p.team1_score IS NOT NULL AND p.team2_score IS NOT NULL
         THEN '✓ Counts in "All Predictions"'
-        ELSE '✗ Does not count (no prediction or deadline not passed)'
+        ELSE '✗ Does not count (prediction not filled out)'
     END as all_predictions_status,
     CASE 
         WHEN p.team1_score IS NOT NULL AND g.is_finished = true AND p.points IS NOT NULL 

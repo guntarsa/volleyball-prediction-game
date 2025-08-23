@@ -46,7 +46,7 @@
                                 <th scope="col" class="text-center">Rank</th>
                                 <th scope="col">Player</th>
                                 <th scope="col" class="text-center">Total Score</th>
-                                <th scope="col" class="text-center" title="All predictions with passed deadlines">All Predictions</th>
+                                <th scope="col" class="text-center" title="All predictions filled out by user">All Predictions</th>
                                 <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
                                 <th scope="col" class="text-center" title="Correct predictions (2+ points)">Correct</th>
                                 <th scope="col" class="text-center" title="Accuracy based on finished games">Accuracy</th>
@@ -78,7 +78,7 @@
                                     <span class="badge bg-primary fs-6">{{ user.total_score }}</span>
                                 </td>
                                 <td class="text-center">
-                                    <span class="text-muted">{{ user.all_predictions_passed }}</span>
+                                    <span class="text-muted">{{ user.all_predictions_filled }}</span>
                                 </td>
                                 <td class="text-center">
                                     <strong>{{ user.total_predictions }}</strong>
@@ -123,7 +123,7 @@
                                         </a>
                                         <div class="d-flex gap-3">
                                             <small class="text-muted">
-                                                <i class="fas fa-list me-1"></i>{{ user.all_predictions_passed }}
+                                                <i class="fas fa-list me-1"></i>{{ user.all_predictions_filled }}
                                             </small>
                                             <small class="text-muted">
                                                 <i class="fas fa-gamepad me-1"></i>{{ user.total_predictions }}
@@ -161,7 +161,7 @@
                 <div class="row">
                     <div class="col-md-6">
                         <small class="text-muted">
-                            <strong>All Predictions:</strong> Total predictions made with passed deadlines<br>
+                            <strong>All Predictions:</strong> Total predictions filled out (regardless of deadline)<br>
                             <strong>Finished Games:</strong> Predictions for games with final results
                         </small>
                     </div>
