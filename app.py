@@ -156,6 +156,14 @@ class User(UserMixin, db.Model):
                    and p.game.is_finished 
                    and p.points is not None])
     
+    def get_all_predictions_with_passed_deadline(self):
+        """Count all predictions where deadline has passed (including unfinished games)"""
+        from datetime import datetime
+        current_time = get_riga_time()
+        return len([p for p in self.predictions 
+                   if p.team1_score is not None 
+                   and to_riga_time(p.game.prediction_deadline) <= current_time])
+    
     def get_correct_predictions(self):
         """Count only predictions with 2+ points (truly correct predictions)"""
         return len([p for p in self.predictions 
@@ -458,6 +466,7 @@ def leaderboard():
             'id': user.id,
             'name': user.name,
             'total_score': user.get_total_score(),
+            'all_predictions_passed': user.get_all_predictions_with_passed_deadline(),
             'total_predictions': user.get_total_predictions(),
             'correct_predictions': user.get_correct_predictions(),
             'accuracy': user.get_accuracy_percentage()

@@ -46,9 +46,10 @@
                                 <th scope="col" class="text-center">Rank</th>
                                 <th scope="col">Player</th>
                                 <th scope="col" class="text-center">Total Score</th>
-                                <th scope="col" class="text-center">Predictions</th>
-                                <th scope="col" class="text-center">Correct</th>
-                                <th scope="col" class="text-center">Accuracy</th>
+                                <th scope="col" class="text-center" title="All predictions with passed deadlines">All Predictions</th>
+                                <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
+                                <th scope="col" class="text-center" title="Correct predictions (2+ points)">Correct</th>
+                                <th scope="col" class="text-center" title="Accuracy based on finished games">Accuracy</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -76,7 +77,12 @@
                                 <td class="text-center">
                                     <span class="badge bg-primary fs-6">{{ user.total_score }}</span>
                                 </td>
-                                <td class="text-center">{{ user.total_predictions }}</td>
+                                <td class="text-center">
+                                    <span class="text-muted">{{ user.all_predictions_passed }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <strong>{{ user.total_predictions }}</strong>
+                                </td>
                                 <td class="text-center">{{ user.correct_predictions }}</td>
                                 <td class="text-center">
                                     {% if user.accuracy >= 70 %}
@@ -117,6 +123,9 @@
                                         </a>
                                         <div class="d-flex gap-3">
                                             <small class="text-muted">
+                                                <i class="fas fa-list me-1"></i>{{ user.all_predictions_passed }}
+                                            </small>
+                                            <small class="text-muted">
                                                 <i class="fas fa-gamepad me-1"></i>{{ user.total_predictions }}
                                             </small>
                                             <small class="text-muted">
@@ -139,6 +148,29 @@
                         </div>
                     </div>
                     {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Column explanations -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-info-circle"></i> Column Explanations
+                </h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <strong>All Predictions:</strong> Total predictions made with passed deadlines<br>
+                            <strong>Finished Games:</strong> Predictions for games with final results
+                        </small>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <strong>Correct:</strong> Predictions earning 2+ points (truly correct)<br>
+                            <strong>Accuracy:</strong> Percentage based on finished games only
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>
