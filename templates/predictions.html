@@ -38,90 +38,103 @@
     {% set _ = games_by_date[game_date].append(game) %}
 {% endfor %}
 
-<!-- Date navigation -->
-{% if games_by_date %}
+<!-- Game Filters -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="fas fa-calendar"></i> Filter Games by Date
+                    <i class="fas fa-filter"></i> Filter Games
                 </h5>
             </div>
             <div class="card-body">
-                <!-- Mobile/Desktop Filter Controls -->
-                <div class="d-none d-md-flex flex-wrap gap-2 mb-3">
-                    <button class="btn btn-sm btn-outline-primary" onclick="showAllDates()" id="showAllBtn">
-                        <i class="fas fa-eye"></i> Show All
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="hideAllDates()" id="hideAllBtn">
-                        <i class="fas fa-eye-slash"></i> Hide All
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="showUpcomingOnly()" id="upcomingBtn">
-                        <i class="fas fa-clock"></i> Upcoming Only
-                    </button>
+                <form method="GET" action="{{ url_for('predictions') }}" id="filterForm">
+                    <!-- Quick Filter Buttons -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="btn-group flex-wrap" role="group" aria-label="Quick filters">
+                                <input type="radio" class="btn-check" name="filter" id="filter_today_tomorrow" value="today_tomorrow" 
+                                       {{ 'checked' if show_filter == 'today_tomorrow' else '' }} onchange="submitFilter()">
+                                <label class="btn btn-outline-primary" for="filter_today_tomorrow">
+                                    <i class="fas fa-calendar-day"></i> Today & Tomorrow
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="filter" id="filter_upcoming" value="upcoming" 
+                                       {{ 'checked' if show_filter == 'upcoming' else '' }} onchange="submitFilter()">
+                                <label class="btn btn-outline-success" for="filter_upcoming">
+                                    <i class="fas fa-clock"></i> Upcoming
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="filter" id="filter_finished" value="finished" 
+                                       {{ 'checked' if show_filter == 'finished' else '' }} onchange="submitFilter()">
+                                <label class="btn btn-outline-info" for="filter_finished">
+                                    <i class="fas fa-check-circle"></i> Finished
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="filter" id="filter_all" value="all" 
+                                       {{ 'checked' if show_filter == 'all' else '' }} onchange="submitFilter()">
+                                <label class="btn btn-outline-secondary" for="filter_all">
+                                    <i class="fas fa-list"></i> All Games
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Filters -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="date" class="form-label">Specific Date:</label>
+                                <input type="date" class="form-control" name="date" id="date" 
+                                       value="{{ selected_date or '' }}" onchange="submitFilter()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="round" class="form-label">Round:</label>
+                                <select class="form-select" name="round" id="round" onchange="submitFilter()">
+                                    <option value="">All Rounds</option>
+                                    {% for round_name in unique_rounds %}
+                                        <option value="{{ round_name }}" {{ 'selected' if selected_round == round_name else '' }}>
+                                            {{ round_name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-warning" onclick="clearFilters()">
+                                    <i class="fas fa-times"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Filter Status -->
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        {% if show_filter == 'today_tomorrow' %}
+                            Showing games for today and tomorrow
+                        {% elif show_filter == 'upcoming' %}
+                            Showing upcoming (unfinished) games
+                        {% elif show_filter == 'finished' %}
+                            Showing finished games
+                        {% elif show_filter == 'all' %}
+                            Showing all games
+                        {% endif %}
+                        {% if selected_date %}
+                            • Date: {{ selected_date }}
+                        {% endif %}
+                        {% if selected_round %}
+                            • Round: {{ selected_round }}
+                        {% endif %}
+                        • Total: {{ games|length }} games
+                    </small>
                 </div>
                 
-                <!-- Mobile-Only Filter Controls -->
-                <div class="d-md-none mb-3">
-                    <div class="row g-2">
-                        <div class="col-4">
-                            <button class="btn btn-sm btn-outline-primary w-100" onclick="showAllDates()" id="showAllBtnMobile">
-                                <i class="fas fa-eye d-block mb-1"></i>
-                                <small>Show All</small>
-                            </button>
-                        </div>
-                        <div class="col-4">
-                            <button class="btn btn-sm btn-outline-secondary w-100" onclick="hideAllDates()" id="hideAllBtnMobile">
-                                <i class="fas fa-eye-slash d-block mb-1"></i>
-                                <small>Hide All</small>
-                            </button>
-                        </div>
-                        <div class="col-4">
-                            <button class="btn btn-sm btn-outline-success w-100" onclick="showUpcomingOnly()" id="upcomingBtnMobile">
-                                <i class="fas fa-clock d-block mb-1"></i>
-                                <small>Upcoming</small>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Date Selection - Horizontal Scroll on Mobile -->
-                <div class="date-buttons-container">
-                    <div class="d-none d-md-block">
-                        <small class="text-muted mb-2 d-block">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Click dates to show/hide specific days
-                        </small>
-                    </div>
-                    <div class="d-md-none mb-2">
-                        <small class="text-muted">
-                            <i class="fas fa-swatchbook me-1"></i>
-                            Swipe left/right to see more dates
-                        </small>
-                    </div>
-                    <div class="date-scroll-container">
-                        {% for date_str in games_by_date.keys() | sort %}
-                            {% set date_obj = games_by_date[date_str][0].game_date %}
-                            {% set has_upcoming = games_by_date[date_str] | selectattr('is_finished', 'equalto', False) | list | length > 0 %}
-                            <button class="btn btn-sm date-filter-btn me-2 mb-2 
-                                           {% if has_upcoming %}btn-success{% else %}btn-secondary{% endif %}"
-                                    onclick="toggleDate('{{ date_str }}')" 
-                                    id="dateBtn_{{ date_str }}"
-                                    data-has-upcoming="{{ has_upcoming }}">
-                                <i class="fas fa-calendar-day mb-1 d-block d-md-inline"></i>
-                                <div class="d-md-none">
-                                    <div class="fw-bold">{{ date_obj.strftime('%m/%d') }}</div>
-                                    <small>{{ games_by_date[date_str] | length }}g</small>
-                                </div>
-                                <span class="d-none d-md-inline">
-                                    {{ date_obj.strftime('%b %d') }}
-                                    <small class="d-block">{{ games_by_date[date_str] | length }} games</small>
-                                </span>
-                            </button>
-                        {% endfor %}
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -436,6 +449,32 @@
 
 {% block scripts %}
 <script>
+// Filter form functions
+function submitFilter() {
+    document.getElementById('filterForm').submit();
+}
+
+function clearFilters() {
+    // Reset all filter inputs
+    const form = document.getElementById('filterForm');
+    
+    // Reset radio buttons to default (today_tomorrow)
+    const todayTomorrowRadio = document.getElementById('filter_today_tomorrow');
+    if (todayTomorrowRadio) {
+        todayTomorrowRadio.checked = true;
+    }
+    
+    // Clear advanced filters
+    const dateInput = document.getElementById('date');
+    const roundSelect = document.getElementById('round');
+    
+    if (dateInput) dateInput.value = '';
+    if (roundSelect) roundSelect.selectedIndex = 0;
+    
+    // Submit the form to apply default filter
+    form.submit();
+}
+
 // Load user's existing prediction when page loads
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.prediction-form').forEach(form => {
@@ -779,89 +818,6 @@ function addVolleyballValidation(form) {
     });
 }
 
-// Date filtering functions
-function showAllDates() {
-    const dateSections = document.querySelectorAll('.date-section');
-    dateSections.forEach(section => {
-        section.style.display = 'block';
-        const dateStr = section.id.replace('dateSection_', '');
-        const content = document.getElementById(`dateContent_${dateStr}`);
-        if (content) {
-            content.classList.add('show');
-        }
-        const icon = document.getElementById(`toggleIcon_${dateStr}`);
-        if (icon) {
-            icon.classList.remove('fa-chevron-right');
-            icon.classList.add('fa-chevron-down');
-        }
-    });
-    
-    // Update button states
-    updateFilterButtonStates('showAll');
-}
-
-function hideAllDates() {
-    const dateSections = document.querySelectorAll('.date-section');
-    dateSections.forEach(section => {
-        const dateStr = section.id.replace('dateSection_', '');
-        const content = document.getElementById(`dateContent_${dateStr}`);
-        if (content) {
-            content.classList.remove('show');
-        }
-        const icon = document.getElementById(`toggleIcon_${dateStr}`);
-        if (icon) {
-            icon.classList.remove('fa-chevron-down');
-            icon.classList.add('fa-chevron-right');
-        }
-    });
-    
-    // Update button states
-    updateFilterButtonStates('hideAll');
-}
-
-function showUpcomingOnly() {
-    const dateSections = document.querySelectorAll('.date-section');
-    let hasUpcoming = false;
-    
-    dateSections.forEach(section => {
-        const dateStr = section.id.replace('dateSection_', '');
-        const upcomingGames = section.querySelectorAll('.game-card:not([data-finished="true"])');
-        
-        if (upcomingGames.length > 0) {
-            section.style.display = 'block';
-            const content = document.getElementById(`dateContent_${dateStr}`);
-            if (content) {
-                content.classList.add('show');
-            }
-            const icon = document.getElementById(`toggleIcon_${dateStr}`);
-            if (icon) {
-                icon.classList.remove('fa-chevron-right');
-                icon.classList.add('fa-chevron-down');
-            }
-            hasUpcoming = true;
-        } else {
-            section.style.display = 'none';
-        }
-    });
-    
-    // Update button states
-    updateFilterButtonStates('upcomingOnly');
-}
-
-function toggleDate(dateStr) {
-    const section = document.getElementById(`dateSection_${dateStr}`);
-    const button = document.getElementById(`dateBtn_${dateStr}`);
-    
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        button.classList.remove('btn-outline-secondary');
-        button.classList.add('btn-success');
-    } else {
-        section.style.display = 'none';
-        button.classList.remove('btn-success');
-        button.classList.add('btn-outline-secondary');
-    }
-}
 
 function toggleDateSection(dateStr) {
     const content = document.getElementById(`dateContent_${dateStr}`);
@@ -880,49 +836,6 @@ function toggleDateSection(dateStr) {
     }
 }
 
-function updateFilterButtonStates(activeFilter) {
-    const showAllBtn = document.getElementById('showAllBtn');
-    const hideAllBtn = document.getElementById('hideAllBtn');
-    const upcomingBtn = document.getElementById('upcomingBtn');
-    
-    // Reset all buttons
-    [showAllBtn, hideAllBtn, upcomingBtn].forEach(btn => {
-        if (btn) {
-            btn.classList.remove('btn-primary', 'btn-outline-primary', 'btn-outline-secondary', 'btn-outline-success');
-        }
-    });
-    
-    // Set active button
-    switch (activeFilter) {
-        case 'showAll':
-            if (showAllBtn) {
-                showAllBtn.classList.add('btn-primary');
-                hideAllBtn.classList.add('btn-outline-secondary');
-                upcomingBtn.classList.add('btn-outline-success');
-            }
-            break;
-        case 'hideAll':
-            if (hideAllBtn) {
-                showAllBtn.classList.add('btn-outline-primary');
-                hideAllBtn.classList.add('btn-secondary');
-                upcomingBtn.classList.add('btn-outline-success');
-            }
-            break;
-        case 'upcomingOnly':
-            if (upcomingBtn) {
-                showAllBtn.classList.add('btn-outline-primary');
-                hideAllBtn.classList.add('btn-outline-secondary');
-                upcomingBtn.classList.add('btn-success');
-            }
-            break;
-        default:
-            if (showAllBtn) {
-                showAllBtn.classList.add('btn-outline-primary');
-                hideAllBtn.classList.add('btn-outline-secondary');
-                upcomingBtn.classList.add('btn-outline-success');
-            }
-    }
-}
 
 function checkDeadlineStatus() {
     // Check if any prediction forms should be disabled due to passed deadlines

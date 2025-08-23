@@ -346,20 +346,26 @@ def calculate_tournament_points(prediction, tournament_config):
     
     points = 0
     
-    # Check first place (winner) - 50 points
+    # Check first place (winner) - 30 points
     if prediction.first_place == tournament_config.first_place_result:
-        points += 50
+        points += 30
     
     # Get user's predictions as a list
     user_predictions = [prediction.first_place, prediction.second_place, prediction.third_place]
     
-    # Check if user mentioned actual 2nd place anywhere in their predictions - 25 points
+    # Check if user mentioned actual 2nd place anywhere in their predictions - 15 points
     if tournament_config.second_place_result in user_predictions:
-        points += 25
+        points += 15
+        # Additional 5 points if predicted in exact 2nd place
+        if prediction.second_place == tournament_config.second_place_result:
+            points += 5
     
-    # Check if user mentioned actual 3rd place anywhere in their predictions - 25 points  
+    # Check if user mentioned actual 3rd place anywhere in their predictions - 15 points  
     if tournament_config.third_place_result in user_predictions:
-        points += 25
+        points += 15
+        # Additional 5 points if predicted in exact 3rd place
+        if prediction.third_place == tournament_config.third_place_result:
+            points += 5
     
     return points
 
@@ -450,9 +456,60 @@ def logout():
 @app.route('/predictions')
 @login_required
 def predictions():
-    # Get all games (both upcoming and finished) sorted by game time, earliest first
-    games = Game.query.order_by(Game.game_date.asc()).all()
-    return render_template('predictions.html', games=games)
+    # Get filter parameters
+    show_filter = request.args.get('filter', 'today_tomorrow')  # Default to today/tomorrow
+    selected_date = request.args.get('date')
+    selected_round = request.args.get('round')
+    
+    # Base query
+    games_query = Game.query
+    
+    # Apply filters
+    if show_filter == 'today_tomorrow':
+        # Default filter: show games for today and tomorrow only
+        current_date = get_riga_time().date()
+        tomorrow_date = current_date + timedelta(days=1)
+        games_query = games_query.filter(
+            db.func.date(Game.game_date) >= current_date,
+            db.func.date(Game.game_date) <= tomorrow_date
+        )
+    elif show_filter == 'all':
+        # Show all games
+        pass  # No additional filtering
+    elif show_filter == 'upcoming':
+        # Show only upcoming games (not finished)
+        games_query = games_query.filter(Game.is_finished == False)
+    elif show_filter == 'finished':
+        # Show only finished games
+        games_query = games_query.filter(Game.is_finished == True)
+    
+    # Apply date filter if provided
+    if selected_date:
+        try:
+            filter_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+            games_query = games_query.filter(db.func.date(Game.game_date) == filter_date)
+        except ValueError:
+            flash('Invalid date format', 'error')
+    
+    # Apply round filter if provided
+    if selected_round:
+        games_query = games_query.filter(Game.round_name.ilike(f'%{selected_round}%'))
+    
+    # Get filtered games sorted by game time, earliest first
+    games = games_query.order_by(Game.game_date.asc()).all()
+    
+    # Get unique dates and rounds for filter dropdowns
+    all_games = Game.query.all()
+    unique_dates = sorted(list(set(game.game_date.date() for game in all_games)))
+    unique_rounds = sorted(list(set(game.round_name for game in all_games)))
+    
+    return render_template('predictions.html', 
+                         games=games,
+                         unique_dates=unique_dates,
+                         unique_rounds=unique_rounds,
+                         show_filter=show_filter,
+                         selected_date=selected_date,
+                         selected_round=selected_round)
 
 @app.route('/leaderboard')
 @login_required

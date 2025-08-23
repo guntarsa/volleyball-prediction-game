@@ -30,9 +30,9 @@
                     <div class="alert alert-info">
                         <h6><i class="fas fa-info-circle"></i> Scoring System</h6>
                         <ul class="mb-0">
-                            <li><strong>50 points</strong> for correctly predicting the tournament winner (1st place)</li>
-                            <li><strong>25 points</strong> for correctly predicting the runner-up (2nd place)</li>
-                            <li><strong>25 points</strong> for correctly predicting the bronze medalist (3rd place)</li>
+                            <li><strong>30 points</strong> for correctly predicting the tournament winner</li>
+                            <li><strong>15 points</strong> for predicting any team that becomes a medalist (2nd or 3rd place)</li>
+                            <li><strong>5 additional points</strong> for correctly predicting the exact position (2nd or 3rd place)</li>
                         </ul>
                     </div>
                     
@@ -45,7 +45,6 @@
                                             <i class="fas fa-medal"></i>
                                             1st Place (Winner)
                                         </h6>
-                                        <small>50 points</small>
                                     </div>
                                     <div class="card-body">
                                         <select name="first_place" class="form-select" required>
@@ -68,7 +67,6 @@
                                             <i class="fas fa-medal"></i>
                                             2nd Place (Runner-up)
                                         </h6>
-                                        <small>25 points</small>
                                     </div>
                                     <div class="card-body">
                                         <select name="second_place" class="form-select" required>
@@ -91,7 +89,6 @@
                                             <i class="fas fa-medal"></i>
                                             3rd Place (Bronze)
                                         </h6>
-                                        <small>25 points</small>
                                     </div>
                                     <div class="card-body">
                                         <select name="third_place" class="form-select" required>
@@ -207,7 +204,7 @@
                                         {% endif %}
                                         {{ tournament_config.first_place_result }}
                                         {% if user_prediction.first_place == tournament_config.first_place_result %}
-                                            <span class="badge bg-success ms-2">+50 pts</span>
+                                            <span class="badge bg-success ms-2">+30 pts</span>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-4">
@@ -216,8 +213,12 @@
                                             <span class="fi fi-{{ get_country_code(tournament_config.second_place_result) }} team-flag"></span>
                                         {% endif %}
                                         {{ tournament_config.second_place_result }}
-                                        {% if user_prediction.second_place == tournament_config.second_place_result %}
-                                            <span class="badge bg-success ms-2">+25 pts</span>
+                                        {% if tournament_config.second_place_result in [user_prediction.first_place, user_prediction.second_place, user_prediction.third_place] %}
+                                            {% if user_prediction.second_place == tournament_config.second_place_result %}
+                                                <span class="badge bg-success ms-2">+20 pts</span>
+                                            {% else %}
+                                                <span class="badge bg-warning ms-2">+15 pts</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                     <div class="col-md-4">
@@ -226,8 +227,12 @@
                                             <span class="fi fi-{{ get_country_code(tournament_config.third_place_result) }} team-flag"></span>
                                         {% endif %}
                                         {{ tournament_config.third_place_result }}
-                                        {% if user_prediction.third_place == tournament_config.third_place_result %}
-                                            <span class="badge bg-success ms-2">+25 pts</span>
+                                        {% if tournament_config.third_place_result in [user_prediction.first_place, user_prediction.second_place, user_prediction.third_place] %}
+                                            {% if user_prediction.third_place == tournament_config.third_place_result %}
+                                                <span class="badge bg-success ms-2">+20 pts</span>
+                                            {% else %}
+                                                <span class="badge bg-warning ms-2">+15 pts</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </div>
