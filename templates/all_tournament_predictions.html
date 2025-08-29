@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}All Tournament Predictions - Volleyball Predictions{% endblock %}
+
+{% block content %}
+<h1 class="page-title">All Tournament Predictions</h1>
+
+<!-- Navigation Link Back -->
+<div class="row mb-3">
+    <div class="col-12">
+        <a href="{{ url_for('tournament_predictions') }}" class="btn btn-outline-light">
+            <i class="fas fa-arrow-left me-2"></i>Back to Tournament Predictions
+        </a>
+    </div>
+</div>
+
+<!-- Tournament Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white text-center">
+                <h5 class="mb-1">
+                    <i class="fas fa-trophy text-warning me-2"></i>
+                    Tournament Prediction Results
+                </h5>
+                <small>
+                    <i class="fas fa-lock me-1"></i>
+                    Predictions closed on {{ tournament_config.prediction_deadline.strftime('%B %d, %Y at %H:%M') }}
+                </small>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <h4 class="text-primary">{{ stats.total_participants }}</h4>
+                            <small class="text-muted">Total Participants</small>
+                        </div>
+                    </div>
+                    {% if stats.results_available %}
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <h4 class="text-success">{{ stats.first_place_correct }}</h4>
+                            <small class="text-muted">Correct Winner</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <h4 class="text-info">{{ stats.second_place_mentioned }}</h4>
+                            <small class="text-muted">Mentioned Runner-up</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <h4 class="text-warning">{{ "%.1f"|format(stats.average_points) }}</h4>
+                            <small class="text-muted">Average Points</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if tournament_config.are_results_available() %}
+<!-- Official Tournament Results -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header text-center bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-crown me-2"></i>
+                    Official Tournament Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="result-card bg-warning text-dark">
+                            <h6><i class="fas fa-medal"></i> 1st Place</h6>
+                            <h4>
+                                {% if get_country_code(tournament_config.first_place_result) %}
+                                    <span class="fi fi-{{ get_country_code(tournament_config.first_place_result) }} team-flag-large me-2"></span>
+                                {% endif %}
+                                {{ tournament_config.first_place_result }}
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="result-card bg-secondary text-light">
+                            <h6><i class="fas fa-medal"></i> 2nd Place</h6>
+                            <h4>
+                                {% if get_country_code(tournament_config.second_place_result) %}
+                                    <span class="fi fi-{{ get_country_code(tournament_config.second_place_result) }} team-flag-large me-2"></span>
+                                {% endif %}
+                                {{ tournament_config.second_place_result }}
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="result-card bg-dark text-light">
+                            <h6><i class="fas fa-medal"></i> 3rd Place</h6>
+                            <h4>
+                                {% if get_country_code(tournament_config.third_place_result) %}
+                                    <span class="fi fi-{{ get_country_code(tournament_config.third_place_result) }} team-flag-large me-2"></span>
+                                {% endif %}
+                                {{ tournament_config.third_place_result }}
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- All Predictions -->
+{% if all_predictions %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    All Participants' Predictions
+                    <span class="badge bg-primary ms-2">{{ stats.total_participants }} participants</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                
+                <!-- Desktop Table View -->
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Participant</th>
+                                <th class="text-center">1st Place</th>
+                                <th class="text-center">2nd Place</th>
+                                <th class="text-center">3rd Place</th>
+                                {% if stats.results_available %}
+                                <th class="text-center">Points Earned</th>
+                                {% endif %}
+                                <th class="text-center">Predicted On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prediction in all_predictions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ prediction.user.name }}</strong>
+                                </td>
+                                <td class="text-center">
+                                    <div class="prediction-team">
+                                        {% if get_country_code(prediction.first_place) %}
+                                            <span class="fi fi-{{ get_country_code(prediction.first_place) }} team-flag me-2"></span>
+                                        {% endif %}
+                                        {{ prediction.first_place }}
+                                        {% if stats.results_available and prediction.first_place == tournament_config.first_place_result %}
+                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <div class="prediction-team">
+                                        {% if get_country_code(prediction.second_place) %}
+                                            <span class="fi fi-{{ get_country_code(prediction.second_place) }} team-flag me-2"></span>
+                                        {% endif %}
+                                        {{ prediction.second_place }}
+                                        {% if stats.results_available and tournament_config.second_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
+                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <div class="prediction-team">
+                                        {% if get_country_code(prediction.third_place) %}
+                                            <span class="fi fi-{{ get_country_code(prediction.third_place) }} team-flag me-2"></span>
+                                        {% endif %}
+                                        {{ prediction.third_place }}
+                                        {% if stats.results_available and tournament_config.third_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
+                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% if stats.results_available %}
+                                <td class="text-center">
+                                    <span class="badge bg-primary fs-6">{{ prediction.points_earned }}</span>
+                                </td>
+                                {% endif %}
+                                <td class="text-center">
+                                    <small class="text-muted">{{ prediction.updated_at.strftime('%m/%d/%Y') }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Mobile Card View -->
+                <div class="d-md-none">
+                    {% for prediction in all_predictions %}
+                    <div class="card mb-3 prediction-participant-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 fw-bold">{{ prediction.user.name }}</h6>
+                            {% if stats.results_available %}
+                                <span class="badge bg-primary">{{ prediction.points_earned }} pts</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="mobile-position-card bg-warning text-dark">
+                                        <h6>1st</h6>
+                                        <div class="team-prediction">
+                                            {% if get_country_code(prediction.first_place) %}
+                                                <span class="fi fi-{{ get_country_code(prediction.first_place) }} team-flag d-block mb-1"></span>
+                                            {% endif %}
+                                            <small class="fw-bold">{{ prediction.first_place }}</small>
+                                            {% if stats.results_available and prediction.first_place == tournament_config.first_place_result %}
+                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="mobile-position-card bg-secondary text-light">
+                                        <h6>2nd</h6>
+                                        <div class="team-prediction">
+                                            {% if get_country_code(prediction.second_place) %}
+                                                <span class="fi fi-{{ get_country_code(prediction.second_place) }} team-flag d-block mb-1"></span>
+                                            {% endif %}
+                                            <small class="fw-bold">{{ prediction.second_place }}</small>
+                                            {% if stats.results_available and tournament_config.second_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
+                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="mobile-position-card bg-dark text-light">
+                                        <h6>3rd</h6>
+                                        <div class="team-prediction">
+                                            {% if get_country_code(prediction.third_place) %}
+                                                <span class="fi fi-{{ get_country_code(prediction.third_place) }} team-flag d-block mb-1"></span>
+                                            {% endif %}
+                                            <small class="fw-bold">{{ prediction.third_place }}</small>
+                                            {% if stats.results_available and tournament_config.third_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
+                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-center mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar-alt me-1"></i>
+                                    Predicted on {{ prediction.updated_at.strftime('%B %d, %Y') }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="alert alert-info text-center">
+    <h4><i class="fas fa-users"></i> No Tournament Predictions</h4>
+    <p>No participants have made tournament predictions yet.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .stat-box {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-box h4 {
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+    
+    .result-card {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .prediction-team {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .prediction-participant-card {
+        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
+    }
+    
+    .prediction-participant-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateX(3px);
+    }
+    
+    .mobile-position-card {
+        padding: 0.75rem 0.5rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        min-height: 80px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    .team-prediction {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    @media (max-width: 768px) {
+        .team-flag {
+            width: 16px;
+            height: 12px;
+        }
+        
+        .mobile-position-card {
+            min-height: 70px;
+            padding: 0.5rem 0.25rem;
+        }
+        
+        .mobile-position-card h6 {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .mobile-position-card small {
+            font-size: 0.75rem;
+            line-height: 1.2;
+        }
+        
+        .prediction-participant-card .card-header {
+            padding: 0.75rem;
+        }
+        
+        .prediction-participant-card .card-body {
+            padding: 0.75rem;
+        }
+    }
+</style>
+{% endblock %}

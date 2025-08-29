@@ -1114,6 +1114,53 @@ def tournament_predictions():
                          teams=teams, 
                          user_prediction=user_prediction)
 
+@app.route('/tournament-predictions/all')
+@login_required
+def all_tournament_predictions():
+    # Get tournament config to check if predictions are closed
+    tournament_config = TournamentConfig.query.first()
+    if not tournament_config:
+        flash('Tournament predictions are not yet available. Please contact admin.', 'warning')
+        return redirect(url_for('index'))
+    
+    # Only show all predictions if deadline has passed
+    if tournament_config.is_prediction_open():
+        flash('Tournament predictions are still open. All predictions will be visible after the deadline.', 'info')
+        return redirect(url_for('tournament_predictions'))
+    
+    # Get all tournament predictions with user information, ordered by user name
+    all_predictions = (TournamentPrediction.query
+                      .join(User)
+                      .order_by(User.name)
+                      .all())
+    
+    # Get statistics
+    total_participants = len(all_predictions)
+    
+    # If tournament results are available, calculate some stats
+    stats = {
+        'total_participants': total_participants,
+        'results_available': tournament_config.are_results_available()
+    }
+    
+    if tournament_config.are_results_available():
+        # Count correct predictions for each position
+        first_place_correct = len([p for p in all_predictions if p.first_place == tournament_config.first_place_result])
+        second_place_mentioned = len([p for p in all_predictions if tournament_config.second_place_result in [p.first_place, p.second_place, p.third_place]])
+        third_place_mentioned = len([p for p in all_predictions if tournament_config.third_place_result in [p.first_place, p.second_place, p.third_place]])
+        
+        stats.update({
+            'first_place_correct': first_place_correct,
+            'second_place_mentioned': second_place_mentioned, 
+            'third_place_mentioned': third_place_mentioned,
+            'average_points': sum(p.points_earned for p in all_predictions) / max(total_participants, 1)
+        })
+    
+    return render_template('all_tournament_predictions.html',
+                         tournament_config=tournament_config,
+                         all_predictions=all_predictions,
+                         stats=stats)
+
 @app.route('/get_prediction/<int:game_id>')
 @login_required
 def get_prediction(game_id):
