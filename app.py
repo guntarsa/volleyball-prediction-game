@@ -36,6 +36,7 @@ TEAM_COUNTRY_MAPPING = {
     'Serbia': 'rs',
     'Turkey': 'tr',
     'Japan': 'jp',
+    'Türkiye': 'tr',
     'China': 'cn',
     'Netherlands': 'nl',
     'Dominican Republic': 'do',
