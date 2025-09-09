@@ -462,9 +462,21 @@ def logout():
 @login_required
 def predictions():
     # Get filter parameters
-    show_filter = request.args.get('filter', 'today_tomorrow')  # Default to today/tomorrow
     selected_date = request.args.get('date')
     selected_round = request.args.get('round')
+    
+    # Smart default filter: today/tomorrow if games exist, otherwise upcoming
+    show_filter = request.args.get('filter')
+    if not show_filter:
+        # Check if there are games today or tomorrow
+        current_date = get_riga_time().date()
+        tomorrow_date = current_date + timedelta(days=1)
+        today_tomorrow_games = Game.query.filter(
+            db.func.date(Game.game_date) >= current_date,
+            db.func.date(Game.game_date) <= tomorrow_date
+        ).count()
+        
+        show_filter = 'today_tomorrow' if today_tomorrow_games > 0 else 'upcoming'
     
     # Base query
     games_query = Game.query
