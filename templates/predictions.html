@@ -687,133 +687,10 @@ function addVolleyballValidation(form) {
         // Determine which layout is currently visible
         const isMobile = window.innerWidth < 768;
         
-        // Use AJAX for mobile to avoid page reload and keep focus
-        if (isMobile) {
-            e.preventDefault();
-            handleMobilePredictionSubmit(form);
-            return;
-        }
-        
-        // Check if deadline has passed by looking for disabled submit button
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn && submitBtn.disabled) {
-            e.preventDefault();
-            alert('Prediction deadline has passed for this game');
-            return;
-        }
-        
-        // Get the appropriate inputs based on viewport
-        let team1Input, team2Input;
-        
-        if (isMobile) {
-            // Use mobile inputs - get the specific mobile inputs for this form
-            const gameId = form.querySelector('input[name="game_id"]').value;
-            team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
-            team2Input = form.querySelector(`#team2_score_mobile_${gameId}`);
-        } else {
-            // Use desktop inputs
-            team1Input = form.querySelector('input[name="team1_score"]:not([id*="_mobile_"])');
-            team2Input = form.querySelector('input[name="team2_score"]:not([id*="_mobile_"])');
-        }
-        
-        // If we couldn't find the right inputs, fall back to any visible inputs
-        if (!team1Input || !team2Input) {
-            const allTeam1Inputs = form.querySelectorAll('input[name="team1_score"]');
-            const allTeam2Inputs = form.querySelectorAll('input[name="team2_score"]');
-            
-            // Find the visible inputs
-            for (let input of allTeam1Inputs) {
-                const rect = input.getBoundingClientRect();
-                if (rect.width > 0 && rect.height > 0) {
-                    team1Input = input;
-                    break;
-                }
-            }
-            
-            for (let input of allTeam2Inputs) {
-                const rect = input.getBoundingClientRect();
-                if (rect.width > 0 && rect.height > 0) {
-                    team2Input = input;
-                    break;
-                }
-            }
-        }
-        
-        if (!team1Input || !team2Input) {
-            console.error('Could not find form inputs');
-            return;
-        }
-        
-        const team1Value = team1Input.value.trim();
-        const team2Value = team2Input.value.trim();
-        
-        // Clear any previous validation styling from all inputs
-        const allInputs = form.querySelectorAll('input[name="team1_score"], input[name="team2_score"]');
-        allInputs.forEach(input => {
-            input.classList.remove('is-valid', 'is-invalid');
-        });
-        
-        // Check if both fields are filled
-        if (!team1Value || !team2Value) {
-            e.preventDefault();
-            team1Input.classList.add('is-invalid');
-            team2Input.classList.add('is-invalid');
-            alert('Please fill in both score fields.');
-            return;
-        }
-        
-        const team1Score = parseInt(team1Value);
-        const team2Score = parseInt(team2Value);
-        
-        // Check if values are valid numbers within range
-        if (isNaN(team1Score) || isNaN(team2Score) || 
-            team1Score < 0 || team1Score > 3 || 
-            team2Score < 0 || team2Score > 3) {
-            e.preventDefault();
-            team1Input.classList.add('is-invalid');
-            team2Input.classList.add('is-invalid');
-            alert('Please enter valid scores between 0 and 3.');
-            return;
-        }
-        
-        // Check if it's a valid volleyball score (one team has 3, other has 0-2)
-        const isValid = (team1Score === 3 && team2Score >= 0 && team2Score <= 2) ||
-                       (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
-        
-        if (!isValid) {
-            e.preventDefault();
-            team1Input.classList.add('is-invalid');
-            team2Input.classList.add('is-invalid');
-            alert('Invalid volleyball score!\n\nValid scores:\n• 3-0 (sweep)\n• 3-1 (four sets)\n• 3-2 (five sets)\n\nWinner must have 3 sets, loser 0-2 sets.');
-            return;
-        }
-        
-        // Synchronize values between desktop and mobile inputs before submission
-        const gameId = form.querySelector('input[name="game_id"]').value;
-        const desktopTeam1 = form.querySelector(`#team1_score_${gameId}`);
-        const desktopTeam2 = form.querySelector(`#team2_score_${gameId}`);
-        const mobileTeam1 = form.querySelector(`#team1_score_mobile_${gameId}`);
-        const mobileTeam2 = form.querySelector(`#team2_score_mobile_${gameId}`);
-        
-        // Sync values to ensure both forms have the same data
-        if (desktopTeam1 && mobileTeam1) {
-            desktopTeam1.value = team1Score;
-            mobileTeam1.value = team1Score;
-        }
-        if (desktopTeam2 && mobileTeam2) {
-            desktopTeam2.value = team2Score;
-            mobileTeam2.value = team2Score;
-        }
-        
-        // If we get here, the form is valid - add success styling
-        team1Input.classList.add('is-valid');
-        team2Input.classList.add('is-valid');
-        
-        // Add a small delay to show success state before submission
-        setTimeout(() => {
-            // The form will submit and page will redirect
-            // When user comes back, loadUserPrediction will show the updated state
-        }, 500);
+        // Use AJAX for all devices to avoid page reload and keep scroll position
+        e.preventDefault();
+        handlePredictionSubmit(form);
+        return;
     });
 }
 
@@ -868,23 +745,37 @@ function disablePredictionForm(form, gameId) {
     });
 }
 
-function handleMobilePredictionSubmit(form) {
+function handlePredictionSubmit(form) {
     const gameId = form.querySelector('input[name="game_id"]').value;
-    const team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
-    const team2Input = form.querySelector(`#team2_score_mobile_${gameId}`);
-    const submitBtn = form.querySelector(`#submit_btn_mobile_${gameId}`);
-    const submitText = form.querySelector(`#submit_text_mobile_${gameId}`);
-    const statusDiv = form.querySelector(`#status_mobile_${gameId}`);
-    const statusText = form.querySelector(`#status_text_mobile_${gameId}`);
+    const isMobile = window.innerWidth < 768;
+    
+    // Get the appropriate inputs based on viewport
+    let team1Input, team2Input, submitBtn, submitText, statusDiv, statusText;
+    
+    if (isMobile) {
+        team1Input = form.querySelector(`#team1_score_mobile_${gameId}`);
+        team2Input = form.querySelector(`#team2_score_mobile_${gameId}`);
+        submitBtn = form.querySelector(`#submit_btn_mobile_${gameId}`);
+        submitText = form.querySelector(`#submit_text_mobile_${gameId}`);
+        statusDiv = form.querySelector(`#status_mobile_${gameId}`);
+        statusText = form.querySelector(`#status_text_mobile_${gameId}`);
+    } else {
+        team1Input = form.querySelector(`#team1_score_${gameId}`);
+        team2Input = form.querySelector(`#team2_score_${gameId}`);
+        submitBtn = form.querySelector(`#submit_btn_${gameId}`);
+        submitText = form.querySelector(`#submit_text_${gameId}`);
+        statusDiv = form.querySelector(`#status_${gameId}`);
+        statusText = form.querySelector(`#status_text_${gameId}`);
+    }
     
     // Check if form is disabled (deadline passed)
     if (submitBtn && submitBtn.disabled) {
-        showMobileError('Prediction deadline has passed for this game');
+        showError('Prediction deadline has passed for this game');
         return;
     }
     
     if (!team1Input || !team2Input) {
-        showMobileError('Form inputs not found');
+        showError('Form inputs not found');
         return;
     }
     
@@ -893,7 +784,7 @@ function handleMobilePredictionSubmit(form) {
     
     // Validate inputs
     if (!team1Value || !team2Value) {
-        showMobileError('Please fill in both score fields');
+        showError('Please fill in both score fields');
         team1Input.classList.add('is-invalid');
         team2Input.classList.add('is-invalid');
         return;
@@ -905,7 +796,7 @@ function handleMobilePredictionSubmit(form) {
     if (isNaN(team1Score) || isNaN(team2Score) || 
         team1Score < 0 || team1Score > 3 || 
         team2Score < 0 || team2Score > 3) {
-        showMobileError('Please enter valid scores between 0 and 3');
+        showError('Please enter valid scores between 0 and 3');
         team1Input.classList.add('is-invalid');
         team2Input.classList.add('is-invalid');
         return;
@@ -916,7 +807,7 @@ function handleMobilePredictionSubmit(form) {
                    (team2Score === 3 && team1Score >= 0 && team1Score <= 2);
     
     if (!isValid) {
-        showMobileError('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
+        showError('Invalid volleyball score! Winner must have 3 sets, loser 0-2 sets.');
         team1Input.classList.add('is-invalid');
         team2Input.classList.add('is-invalid');
         return;
@@ -949,7 +840,7 @@ function handleMobilePredictionSubmit(form) {
         .then(data => {
             if (data.success) {
                 // Show success feedback
-                showMobileSuccess(data.message, statusDiv, statusText);
+                showSuccess(data.message, statusDiv, statusText, isMobile);
                 
                 // Update button appearance
                 if (submitText) submitText.textContent = data.is_update ? 'Update Prediction' : 'Save Prediction';
@@ -971,13 +862,24 @@ function handleMobilePredictionSubmit(form) {
                     team2Input.classList.remove('is-valid');
                 }, 3000);
                 
+                // Update both desktop and mobile inputs to keep them in sync
+                const desktopTeam1 = form.querySelector(`#team1_score_${gameId}`);
+                const desktopTeam2 = form.querySelector(`#team2_score_${gameId}`);
+                const mobileTeam1 = form.querySelector(`#team1_score_mobile_${gameId}`);
+                const mobileTeam2 = form.querySelector(`#team2_score_mobile_${gameId}`);
+                
+                if (desktopTeam1) desktopTeam1.value = team1Score;
+                if (desktopTeam2) desktopTeam2.value = team2Score;
+                if (mobileTeam1) mobileTeam1.value = team1Score;
+                if (mobileTeam2) mobileTeam2.value = team2Score;
+                
             } else {
-                showMobileError(data.error || 'Failed to save prediction');
+                showError(data.error || 'Failed to save prediction');
             }
         })
         .catch(error => {
             console.error('Error saving prediction:', error);
-            showMobileError('Network error. Please try again.');
+            showError('Network error. Please try again.');
         })
         .finally(() => {
             // Reset button state
@@ -989,11 +891,18 @@ function handleMobilePredictionSubmit(form) {
     }
 }
 
-function showMobileSuccess(message, statusDiv, statusText) {
+function showSuccess(message, statusDiv, statusText, isMobile) {
     if (statusDiv && statusText) {
         statusText.textContent = message;
         statusDiv.style.display = 'block';
-        statusDiv.querySelector('.alert').className = 'alert alert-success py-2 mb-0';
+        
+        if (isMobile) {
+            statusDiv.querySelector('.alert').className = 'alert alert-success py-2 mb-0';
+        } else {
+            // For desktop, just show the status text
+            statusText.classList.add('text-success');
+            statusText.classList.remove('text-danger');
+        }
         
         // Auto-hide after 4 seconds
         setTimeout(() => {
@@ -1002,7 +911,7 @@ function showMobileSuccess(message, statusDiv, statusText) {
     }
 }
 
-function showMobileError(message) {
+function showError(message) {
     // Create a temporary error toast
     const toast = document.createElement('div');
     toast.className = 'alert alert-danger position-fixed';
@@ -1010,9 +919,9 @@ function showMobileError(message) {
     toast.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
     
     // Add CSS animation if not exists
-    if (!document.querySelector('#mobile-toast-animation')) {
+    if (!document.querySelector('#toast-animation')) {
         const style = document.createElement('style');
-        style.id = 'mobile-toast-animation';
+        style.id = 'toast-animation';
         style.textContent = `
             @keyframes fadeInOut {
                 0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
