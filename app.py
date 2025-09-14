@@ -371,11 +371,11 @@ def calculate_performance_hash(user_id):
 
 def calculate_latest_results_hash(user_id):
     """Calculate hash based on latest game results user hasn't seen"""
-    # Get latest finished games (last 2 hours)
-    recent_cutoff = datetime.utcnow() - timedelta(hours=2)
+    # Get latest finished games (recent games that have results)
     latest_games = Game.query.filter(
         Game.is_finished == True,
-        Game.updated_at >= recent_cutoff
+        Game.team1_score.isnot(None),
+        Game.team2_score.isnot(None)
     ).order_by(Game.game_date.desc()).limit(5).all()
     
     # Include user's predictions for these games
@@ -400,18 +400,48 @@ def calculate_latest_results_hash(user_id):
 
 def get_latest_results_summary(user_id):
     """Get detailed summary of latest results user participated in"""
-    # Get latest finished games (last 2 hours)
-    recent_cutoff = datetime.utcnow() - timedelta(hours=2)
-    latest_games = db.session.query(Game).join(Prediction).filter(
+    # First try to get games from last 24 hours
+    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    recent_games = db.session.query(Game).join(Prediction).filter(
         Game.is_finished == True,
-        Game.updated_at >= recent_cutoff,
+        Game.team1_score.isnot(None),
+        Game.team2_score.isnot(None),
+        Game.game_date >= recent_cutoff,
         Prediction.user_id == user_id
     ).order_by(Game.game_date.desc()).limit(3).all()
     
+    # If we have recent games, use them
+    if recent_games:
+        results = []
+        for game in recent_games:
+            prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
+            if prediction:
+                correct = prediction.points and prediction.points >= 2
+                results.append({
+                    'game': game,
+                    'prediction': prediction,
+                    'correct': correct,
+                    'points': prediction.points or 0,
+                    'is_recent': True
+                })
+        return results
+    
+    # Otherwise get the most recent completed games (up to last 7 days)
+    week_cutoff = datetime.utcnow() - timedelta(days=7)
+    latest_games = db.session.query(Game).join(Prediction).filter(
+        Game.is_finished == True,
+        Game.team1_score.isnot(None),
+        Game.team2_score.isnot(None),
+        Game.game_date >= week_cutoff,
+        Prediction.user_id == user_id
+    ).order_by(Game.game_date.desc()).limit(2).all()
+    
     if not latest_games:
-        # If no recent games, get last completed game
+        # Last resort - get any completed game
         last_game = db.session.query(Game).join(Prediction).filter(
             Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None),
             Prediction.user_id == user_id
         ).order_by(Game.game_date.desc()).first()
         
@@ -437,7 +467,7 @@ def get_latest_results_summary(user_id):
                 'prediction': prediction,
                 'correct': correct,
                 'points': prediction.points or 0,
-                'is_recent': True
+                'is_recent': False
             })
     
     return results
