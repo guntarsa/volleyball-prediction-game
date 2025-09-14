@@ -1006,17 +1006,17 @@ def leaderboard():
     users = User.query.all()
     user_stats = []
     
-    # Initialize AI message generator
-    ai_generator = AIMessageGenerator()
+    # Get AI-generated message only for current user
+    current_user_message = None
+    if current_user.is_authenticated:
+        ai_generator = AIMessageGenerator()
+        try:
+            current_user_message = ai_generator.get_or_create_message(current_user.id)
+        except Exception as e:
+            logging.error(f"Error getting AI message for current user {current_user.id}: {str(e)}")
+            current_user_message = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
     
     for user in users:
-        # Get AI-generated message for the user
-        try:
-            message_data = ai_generator.get_or_create_message(user.id)
-        except Exception as e:
-            logging.error(f"Error getting AI message for user {user.id}: {str(e)}")
-            message_data = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
-        
         stats = {
             'id': user.id,
             'name': user.name,
@@ -1024,15 +1024,12 @@ def leaderboard():
             'all_predictions_filled': user.get_all_predictions_filled(),
             'total_predictions': user.get_total_predictions(),
             'correct_predictions': user.get_correct_predictions(),
-            'accuracy': user.get_accuracy_percentage(),
-            'ai_message': message_data['text'],
-            'ai_category': message_data['category'],
-            'message_cached': message_data.get('cached', False)
+            'accuracy': user.get_accuracy_percentage()
         }
         user_stats.append(stats)
     
     user_stats.sort(key=lambda x: x['total_score'], reverse=True)
-    return render_template('leaderboard.html', users=user_stats)
+    return render_template('leaderboard.html', users=user_stats, current_user_message=current_user_message)
 
 # Removed add_user route - users now register themselves
 
