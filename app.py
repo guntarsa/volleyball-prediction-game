@@ -371,8 +371,8 @@ def calculate_performance_hash(user_id):
 
 def calculate_latest_results_hash(user_id):
     """Calculate hash based on latest game results user hasn't seen"""
-    # Get latest finished games (last 24 hours)
-    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    # Get latest finished games (last 2 hours)
+    recent_cutoff = datetime.utcnow() - timedelta(hours=2)
     latest_games = Game.query.filter(
         Game.is_finished == True,
         Game.updated_at >= recent_cutoff
@@ -399,9 +399,9 @@ def calculate_latest_results_hash(user_id):
     return hashlib.md5(hash_data.encode()).hexdigest() if hash_data else None
 
 def get_latest_results_summary(user_id):
-    """Get summary of latest results user participated in"""
-    # Get latest finished games (last 24 hours)
-    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    """Get detailed summary of latest results user participated in"""
+    # Get latest finished games (last 2 hours)
+    recent_cutoff = datetime.utcnow() - timedelta(hours=2)
     latest_games = db.session.query(Game).join(Prediction).filter(
         Game.is_finished == True,
         Game.updated_at >= recent_cutoff,
@@ -409,6 +409,22 @@ def get_latest_results_summary(user_id):
     ).order_by(Game.game_date.desc()).limit(3).all()
     
     if not latest_games:
+        # If no recent games, get last completed game
+        last_game = db.session.query(Game).join(Prediction).filter(
+            Game.is_finished == True,
+            Prediction.user_id == user_id
+        ).order_by(Game.game_date.desc()).first()
+        
+        if last_game:
+            prediction = Prediction.query.filter_by(user_id=user_id, game_id=last_game.id).first()
+            if prediction:
+                return [{
+                    'game': last_game,
+                    'prediction': prediction,
+                    'correct': prediction.points and prediction.points >= 2,
+                    'points': prediction.points or 0,
+                    'is_latest': True
+                }]
         return None
     
     results = []
@@ -420,10 +436,59 @@ def get_latest_results_summary(user_id):
                 'game': game,
                 'prediction': prediction,
                 'correct': correct,
-                'points': prediction.points or 0
+                'points': prediction.points or 0,
+                'is_recent': True
             })
     
     return results
+
+def get_detailed_context_for_ai(user_id):
+    """Get very detailed context for AI message generation"""
+    analysis = analyze_user_performance(user_id)
+    if not analysis:
+        return None
+    
+    user = User.query.get(user_id)
+    latest_results = get_latest_results_summary(user_id)
+    
+    context = {
+        'user': user,
+        'analysis': analysis,
+        'latest_results': latest_results,
+        'specific_details': []
+    }
+    
+    # Add specific performance insights
+    if analysis['recent_accuracy'] > analysis['accuracy'] + 15:
+        context['specific_details'].append(f"Hot streak: Recent {analysis['recent_accuracy']}% vs overall {analysis['accuracy']}%")
+    elif analysis['recent_accuracy'] < analysis['accuracy'] - 15:
+        context['specific_details'].append(f"Rough patch: Recent {analysis['recent_accuracy']}% vs overall {analysis['accuracy']}%")
+    
+    # Add ranking context
+    if analysis['rank'] <= 3:
+        context['specific_details'].append(f"Elite position: #{analysis['rank']} out of {analysis['total_players']} players")
+    elif analysis['rank'] <= analysis['total_players'] // 2:
+        context['specific_details'].append(f"Upper half: #{analysis['rank']} out of {analysis['total_players']} players")
+    else:
+        context['specific_details'].append(f"Room to climb: #{analysis['rank']} out of {analysis['total_players']} players")
+    
+    # Add latest game details if available
+    if latest_results:
+        for result in latest_results[:2]:  # Only first 2 games
+            game = result['game']
+            pred = result['prediction']
+            actual_score = f"{game.team1_score}-{game.team2_score}"
+            
+            if pred.team1_score is not None:
+                pred_score = f"{pred.team1_score}-{pred.team2_score}"
+                if result['correct']:
+                    context['specific_details'].append(f"Nailed {game.team1} vs {game.team2}: predicted {pred_score}, actual {actual_score} ({result['points']}pts)")
+                else:
+                    context['specific_details'].append(f"Missed {game.team1} vs {game.team2}: predicted {pred_score}, actual {actual_score} ({result['points']}pts)")
+            else:
+                context['specific_details'].append(f"No prediction for {game.team1} vs {game.team2}: {actual_score} ({result['points']}pts default)")
+    
+    return context
 
 def analyze_user_performance(user_id):
     """Analyze user performance and return category and metrics"""
@@ -556,7 +621,7 @@ class AIMessageGenerator:
             cached_message.performance_hash != perf_hash or
             (results_hash and cached_message.latest_results_hash != results_hash) or
             not cached_message.last_viewed_at or
-            (datetime.utcnow() - cached_message.last_viewed_at).total_seconds() > 86400  # 24 hours
+            (datetime.utcnow() - cached_message.created_at).total_seconds() > 3600  # 1 hour
         )
         
         if cached_message and not need_new_message:
@@ -622,52 +687,59 @@ class AIMessageGenerator:
         db.session.commit()
     
     def _generate_gemini_message(self, user_id):
-        """Generate message using Gemini API"""
-        # Analyze user performance
-        analysis = analyze_user_performance(user_id)
-        if not analysis:
+        """Generate message using Gemini API with detailed context"""
+        # Get comprehensive context
+        context = get_detailed_context_for_ai(user_id)
+        if not context:
             return None
         
-        user = User.query.get(user_id)
+        user = context['user']
+        analysis = context['analysis']
+        specific_details = context['specific_details']
         
-        # Get latest results summary
-        latest_results = get_latest_results_summary(user_id)
-        results_context = ""
-        if latest_results:
-            correct_count = sum(1 for r in latest_results if r['correct'])
-            total_results = len(latest_results)
-            points_earned = sum(r['points'] for r in latest_results)
-            results_context = f"\nLatest {total_results} games: {correct_count} correct predictions, {points_earned} points earned"
+        # Build detailed context string
+        details_text = "\n".join(specific_details) if specific_details else "No recent specific events"
         
-        # Create prompt for Gemini
-        prompt = f"""Generate a very short, inspirational message (20-30 words max) for a volleyball prediction game player.
+        # Create highly detailed prompt for Gemini
+        prompt = f"""You are generating a personalized update message for {user.name} in a volleyball prediction competition.
 
-Player: {user.name}
-Category: {analysis['category']}
-Rank: #{analysis['rank']} out of {analysis['total_players']}
-Total Score: {analysis['total_score']} points
-Accuracy: {analysis['accuracy']}% ({analysis['correct_predictions']}/{analysis['total_predictions']})
-Recent Form: {analysis['recent_accuracy']}% in last {analysis['recent_total']} games{results_context}
+CURRENT SITUATION:
+- Player: {user.name}
+- Current Rank: #{analysis['rank']} out of {analysis['total_players']} players
+- Total Points: {analysis['total_score']}
+- Overall Accuracy: {analysis['accuracy']}% ({analysis['correct_predictions']} correct out of {analysis['total_predictions']} predictions)
+- Recent Form: {analysis['recent_accuracy']}% accuracy in last {analysis['recent_total']} games
+- Performance Category: {analysis['category']}
+
+SPECIFIC RECENT EVENTS & INSIGHTS:
+{details_text}
+
+TASK: Create a highly specific, informative message (20-30 words) that:
+
+1. REFERENCES SPECIFIC DETAILS from the context above (actual game results, scores, ranking changes, etc.)
+2. Uses CONCRETE NUMBERS and FACTS, not generic phrases
+3. Mentions actual TEAM NAMES, SCORES, or SPECIFIC ACHIEVEMENTS when available
+4. Shows you understand their exact situation
+5. Provides actionable insight or celebrates specific success
+
+EXAMPLES OF GOOD SPECIFIC MESSAGES:
+- "🎯 Nailed Brazil vs Italy 3-1! Your recent 85% accuracy jumped you to #3. Keep targeting upsets!"
+- "📈 Climbed from #8 to #5 after Argentina prediction! Your 6-point Poland game was clutch. Momentum building!"
+- "🔥 Perfect Serbia 3-0 call earned 6pts! You're #2 with 89% accuracy. One win from the lead!"
+
+EXAMPLES OF BAD GENERIC MESSAGES:
+- "Great job! Keep up the good work!" (too vague)
+- "Your accuracy is improving!" (no specifics)
+- "You're doing well in the competition!" (generic)
 
 Requirements:
-- EXACTLY 20-30 words
-- Encouraging and positive tone
-- Include 1-2 relevant emojis
-- Reference latest results if available
-- Focus on recent performance or achievements
-- Keep it conversational and personal
+- 20-30 words exactly
+- Include 1-2 relevant emojis  
+- Reference specific recent games/results when available
+- Use actual team names and scores from the context
+- Be conversational and excited about their specific achievements
 
-Categories:
-- champion: #1 player
-- top_performer: Top 3
-- accuracy_master: High accuracy (70%+)
-- solid_predictor: Good accuracy (50-70%)
-- improving: Recent performance better than overall
-- struggling: Recent performance worse
-- average: Middle of the pack
-- newcomer: New player (under 5 predictions)
-
-Return only the message text, no explanation or quotes."""
+Generate the message now:"""
 
         try:
             # Configure Gemini API
@@ -685,6 +757,9 @@ Return only the message text, no explanation or quotes."""
             words = message_text.split()
             if len(words) > 30:
                 message_text = ' '.join(words[:30]) + '...'
+            elif len(words) < 15:
+                # If too short, try fallback
+                return self._get_fallback_message(user_id)
             
             # Increment API usage
             self._increment_api_usage()
@@ -700,29 +775,69 @@ Return only the message text, no explanation or quotes."""
             return None
     
     def _get_fallback_message(self, user_id):
-        """Generate message using fallback templates"""
-        analysis = analyze_user_performance(user_id)
-        if not analysis:
-            return {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
+        """Generate message using fallback templates with specific context"""
+        context = get_detailed_context_for_ai(user_id)
+        if not context:
+            return {'text': '🎯 Ready to make some winning predictions!', 'category': 'general', 'cached': False}
         
-        user = User.query.get(user_id)
+        user = context['user']
+        analysis = context['analysis']
+        latest_results = context['latest_results']
         category = analysis['category']
         templates = self.fallback_templates.get(category, self.fallback_templates['average'])
         
-        # Select random template
-        template = random.choice(templates)
+        # Add specific context for templates
+        format_data = {
+            'name': user.name,
+            'total_score': analysis['total_score'],
+            'rank': analysis['rank'],
+            'total_players': analysis['total_players'],
+            'accuracy': analysis['accuracy'],
+            'recent_accuracy': analysis['recent_accuracy'],
+            'correct_predictions': analysis['correct_predictions'],
+            'total_predictions': analysis['total_predictions'],
+            'recent_total': analysis['recent_total']
+        }
         
-        # Format with user data
-        message = template.format(
-            name=user.name,
-            total_score=analysis['total_score'],
-            rank=analysis['rank'],
-            total_players=analysis['total_players'],
-            accuracy=analysis['accuracy'],
-            recent_accuracy=analysis['recent_accuracy'],
-            correct_predictions=analysis['correct_predictions'],
-            total_predictions=analysis['total_predictions']
-        )
+        # Add latest game context if available
+        if latest_results and len(latest_results) > 0:
+            latest = latest_results[0]
+            game = latest['game']
+            if latest['correct']:
+                format_data['latest_game'] = f"nailed {game.team1} vs {game.team2}"
+                format_data['latest_points'] = latest['points']
+            else:
+                format_data['latest_game'] = f"missed {game.team1} vs {game.team2}"
+                format_data['latest_points'] = latest['points']
+        else:
+            format_data['latest_game'] = "ready for next match"
+            format_data['latest_points'] = 0
+        
+        # Select template based on context
+        if latest_results and latest_results[0]['correct']:
+            # Positive recent result templates
+            specific_templates = {
+                'champion': "🏆 {latest_game} keeps you at #{rank}! {accuracy}% accuracy dominates with {total_score} points. Unstoppable!",
+                'top_performer': "🥇 {latest_game} for {latest_points}pts! Rank #{rank} with {accuracy}% accuracy. Top tier performance!",
+                'accuracy_master': "🎯 {latest_game} showcases your {accuracy}% precision! {correct_predictions} correct predictions prove your skills!",
+                'solid_predictor': "👍 {latest_game} adds to your {total_score} points! {accuracy}% accuracy shows consistent improvement!",
+                'improving': "📈 {latest_game} boosts recent {recent_accuracy}% vs {accuracy}% overall! Momentum building perfectly!",
+                'struggling': "💪 {latest_game} for {latest_points}pts breaks the slide! Your dedication shows - keep pushing forward!",
+                'average': "⚡ {latest_game} earns {latest_points}pts! Rank #{rank} with room to climb higher. Keep predicting!",
+                'newcomer': "🎉 {latest_game} in early games! Great start building your prediction skills. Promising beginning!"
+            }
+            template = specific_templates.get(category, templates[0])
+        else:
+            # Use regular templates
+            template = random.choice(templates)
+        
+        # Format with specific data
+        try:
+            message = template.format(**format_data)
+        except KeyError:
+            # Fallback if formatting fails
+            template = random.choice(templates)
+            message = template.format(**format_data)
         
         return {
             'text': message,
