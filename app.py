@@ -243,6 +243,10 @@ class Prediction(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('user_id', 'game_id'),)
+    
+    def is_default_prediction(self):
+        """Check if this is a default prediction (created by recalculation system)"""
+        return self.team1_score is None and self.team2_score is None and self.predicted_winner is None
 
 class TournamentPrediction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -267,6 +271,22 @@ class TournamentTeam(db.Model):
     def get_country_code(self):
         """Get country code, fallback to mapping if not set"""
         return self.country_code or get_country_code(self.name)
+
+class RecalculationConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    default_points_position = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    @staticmethod
+    def get_current_config():
+        """Get current recalculation config, create if doesn't exist"""
+        config = RecalculationConfig.query.first()
+        if not config:
+            config = RecalculationConfig(default_points_position=1)
+            db.session.add(config)
+            db.session.commit()
+        return config
 
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -343,6 +363,107 @@ def calculate_points(prediction, game):
         return 1  # Wrong winner but correct total sets
     else:
         return 0  # Completely wrong
+
+def recalculate_all_points_with_defaults(n_position):
+    """
+    Recalculate all points with default points for non-predictions
+    n_position: Nth worst position for default points (1 = worst, 2 = 2nd worst, etc.)
+    """
+    try:
+        # Get all finished games
+        finished_games = Game.query.filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None)
+        ).all()
+        
+        if not finished_games:
+            return {"success": False, "error": "No finished games found"}
+        
+        # Get all users
+        all_users = User.query.all()
+        if not all_users:
+            return {"success": False, "error": "No users found"}
+        
+        total_games = len(finished_games)
+        processed_games = 0
+        total_predictions_created = 0
+        total_points_updated = 0
+        
+        for game in finished_games:
+            # Get ALL predictions for this game
+            all_predictions = Prediction.query.filter_by(game_id=game.id).all()
+            
+            # Separate real predictions (with actual scores) from default predictions (None scores)
+            real_predictions = [p for p in all_predictions if not p.is_default_prediction()]
+            default_predictions = [p for p in all_predictions if p.is_default_prediction()]
+            
+            # Recalculate points for REAL predictions only
+            real_points = []
+            for prediction in real_predictions:
+                old_points = prediction.points
+                new_points = calculate_points(prediction, game)
+                prediction.points = new_points
+                if old_points != new_points:
+                    total_points_updated += 1
+                if new_points is not None:
+                    real_points.append(new_points)
+            
+            # Sort REAL points to find Nth worst (ascending order)
+            real_points.sort()
+            
+            # Determine default points for non-predictors based on REAL predictions only
+            if len(real_points) >= n_position:
+                default_points = real_points[n_position - 1]  # n_position-1 because 0-indexed
+            elif len(real_points) > 0:
+                # If not enough real predictions exist, use the worst available
+                default_points = real_points[0]
+            else:
+                # No real predictions exist for this game, default to 0
+                default_points = 0
+            
+            # Update existing default predictions with new default points
+            for prediction in default_predictions:
+                if prediction.points != default_points:
+                    prediction.points = default_points
+                    total_points_updated += 1
+            
+            # Find users who don't have ANY prediction (real or default) for this game
+            existing_user_ids = {p.user_id for p in all_predictions}
+            non_predictors = [user for user in all_users if user.id not in existing_user_ids]
+            
+            # Create NEW default predictions for users who have none
+            for user in non_predictors:
+                new_prediction = Prediction(
+                    user_id=user.id,
+                    game_id=game.id,
+                    team1_score=None,  # No actual prediction made
+                    team2_score=None,  # No actual prediction made
+                    predicted_winner=None,
+                    points=default_points
+                )
+                db.session.add(new_prediction)
+                total_predictions_created += 1
+            
+            processed_games += 1
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return {
+            "success": True,
+            "message": f"Recalculation completed successfully!",
+            "details": {
+                "games_processed": processed_games,
+                "predictions_created": total_predictions_created,
+                "points_updated": total_points_updated,
+                "n_position": n_position
+            }
+        }
+        
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": f"Error during recalculation: {str(e)}"}
 
 def calculate_tournament_points(prediction, tournament_config):
     """Calculate points for tournament predictions"""
@@ -636,13 +757,17 @@ def admin():
             teams.add(game.team2)
         teams = sorted(list(teams))
     
+    # Get recalculation config
+    recalculation_config = RecalculationConfig.get_current_config()
+    
     return render_template('admin.html', 
                          games=games, 
                          users=users, 
                          tournament_config=tournament_config,
                          tournament_predictions=tournament_predictions,
                          tournament_teams=tournament_teams,
-                         teams=teams)
+                         teams=teams,
+                         recalculation_config=recalculation_config)
 
 @app.route('/upload_games', methods=['POST'])
 @login_required
@@ -1515,6 +1640,67 @@ def admin_manage_prediction():
     
     db.session.commit()
     return redirect(url_for('admin'))
+
+@app.route('/admin/recalculate_points', methods=['POST'])
+@login_required
+@admin_required
+def admin_recalculate_points():
+    """Handle points recalculation with default points for non-predictors"""
+    try:
+        # Get the N position from form data
+        n_position = request.form.get('default_points_position')
+        if not n_position:
+            return jsonify({"success": False, "error": "Default points position is required"})
+        
+        n_position = int(n_position)
+        if n_position < 1:
+            return jsonify({"success": False, "error": "Position must be at least 1"})
+        
+        # Save configuration
+        config = RecalculationConfig.get_current_config()
+        config.default_points_position = n_position
+        config.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        # Perform recalculation
+        result = recalculate_all_points_with_defaults(n_position)
+        
+        return jsonify(result)
+        
+    except ValueError:
+        return jsonify({"success": False, "error": "Invalid position value"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Server error: {str(e)}"})
+
+@app.route('/admin/recalculation_config', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_recalculation_config():
+    """Get or update recalculation configuration"""
+    if request.method == 'GET':
+        config = RecalculationConfig.get_current_config()
+        return jsonify({
+            "success": True,
+            "default_points_position": config.default_points_position
+        })
+    
+    elif request.method == 'POST':
+        try:
+            n_position = int(request.form.get('default_points_position', 1))
+            if n_position < 1:
+                return jsonify({"success": False, "error": "Position must be at least 1"})
+            
+            config = RecalculationConfig.get_current_config()
+            config.default_points_position = n_position
+            config.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({"success": True, "message": "Configuration updated successfully"})
+            
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid position value"})
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Server error: {str(e)}"})
 
 @app.route('/admin/get_prediction', methods=['GET'])
 @login_required

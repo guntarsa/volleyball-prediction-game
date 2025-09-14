@@ -163,6 +163,87 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
+                    <i class="fas fa-calculator"></i>
+                    Points Recalculation
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Default Points System:</strong> Players who didn't make predictions will receive points equal to the Nth worst performing players for each game.
+                </div>
+                
+                <form id="recalculationConfigForm">
+                    <div class="mb-3">
+                        <label for="default_points_position" class="form-label">Default Points Position (N):</label>
+                        <input type="number" name="default_points_position" id="default_points_position" 
+                               class="form-control" min="1" max="10" 
+                               value="{{ recalculation_config.default_points_position if recalculation_config else 1 }}" required>
+                        <div class="form-text">
+                            <strong>N=1:</strong> Non-predictors get points equal to worst performers<br>
+                            <strong>N=2:</strong> Non-predictors get points equal to 2nd worst performers<br>
+                            <strong>N=3:</strong> Non-predictors get points equal to 3rd worst performers, etc.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-warning" onclick="showRecalculationConfirm()">
+                            <i class="fas fa-calculator"></i> Recalculate All Points
+                        </button>
+                        <small class="text-muted ms-2">This will recalculate points for all finished games</small>
+                    </div>
+                </form>
+                
+                <!-- Status display area -->
+                <div id="recalculationStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line"></i>
+                    Current Points System
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Regular Game Predictions:</h6>
+                    <ul class="list-unstyled mb-3">
+                        <li><span class="badge bg-success me-2">6</span>Perfect prediction (exact score match)</li>
+                        <li><span class="badge bg-primary me-2">4</span>Correct winner + missed by 1 set</li>
+                        <li><span class="badge bg-info me-2">2</span>Correct winner only</li>
+                        <li><span class="badge bg-warning me-2">1</span>Wrong winner but correct total sets</li>
+                        <li><span class="badge bg-danger me-2">0</span>Completely wrong prediction</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Non-Prediction Handling:</h6>
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-arrow-right me-1"></i>
+                        Players without predictions receive default points based on Nth worst performance for each game.
+                    </p>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Important:</strong> Recalculation will affect all user scores and leaderboard positions.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
                     <i class="fas fa-shield-alt"></i>
                     Tournament Teams
                 </h5>
@@ -1261,5 +1342,115 @@ function showPredictionError(message) {
         statusDiv.style.display = 'none';
     }, 4000);
 }
+
+// Recalculation functionality
+function showRecalculationConfirm() {
+    const nPosition = document.getElementById('default_points_position').value;
+    
+    if (!nPosition || nPosition < 1) {
+        showRecalculationError('Please enter a valid position value (1 or higher)');
+        return;
+    }
+    
+    const message = `Are you sure you want to recalculate all points?\n\n` +
+                   `Configuration:\n` +
+                   `• Default Points Position: ${nPosition}\n` +
+                   `• Non-predictors will get points equal to ${getPositionText(nPosition)} performers\n\n` +
+                   `This will:\n` +
+                   `• Recalculate points for all existing predictions\n` +
+                   `• Create predictions with default points for users who didn't predict\n` +
+                   `• Affect all user scores and leaderboard positions\n\n` +
+                   `This action cannot be undone!`;
+    
+    if (confirm(message)) {
+        handleRecalculationSubmit();
+    }
+}
+
+function getPositionText(n) {
+    if (n == 1) return "worst";
+    if (n == 2) return "2nd worst";
+    if (n == 3) return "3rd worst";
+    return `${n}th worst`;
+}
+
+function handleRecalculationSubmit() {
+    const nPosition = document.getElementById('default_points_position').value;
+    const statusDiv = document.getElementById('recalculationStatus');
+    
+    // Show loading state
+    showRecalculationStatus('info', '<i class="fas fa-spinner fa-spin"></i> Recalculating points... This may take a few moments.');
+    
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('default_points_position', nPosition);
+    
+    // Make AJAX request
+    fetch('/admin/recalculate_points', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const details = data.details;
+            const message = `${data.message}<br><br>` +
+                          `<strong>Summary:</strong><br>` +
+                          `• Games processed: ${details.games_processed}<br>` +
+                          `• New predictions created: ${details.predictions_created}<br>` +
+                          `• Points updated: ${details.points_updated}<br>` +
+                          `• Position used: ${details.n_position} (${getPositionText(details.n_position)})`;
+            
+            showRecalculationStatus('success', message);
+            
+            // Auto-refresh page after 3 seconds to show updated data
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            showRecalculationError(data.error || 'Recalculation failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showRecalculationError('Network error occurred. Please try again.');
+    });
+}
+
+function showRecalculationStatus(type, message) {
+    const statusDiv = document.getElementById('recalculationStatus');
+    let alertClass = 'alert-info';
+    let icon = 'fas fa-info-circle';
+    
+    if (type === 'success') {
+        alertClass = 'alert-success';
+        icon = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        alertClass = 'alert-danger';
+        icon = 'fas fa-exclamation-triangle';
+    }
+    
+    statusDiv.innerHTML = `<div class="alert ${alertClass}"><i class="${icon}"></i> ${message}</div>`;
+    statusDiv.style.display = 'block';
+}
+
+function showRecalculationError(message) {
+    showRecalculationStatus('error', message);
+}
+
+// Load configuration on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Load current recalculation configuration
+    fetch('/admin/recalculation_config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('default_points_position').value = data.default_points_position;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading recalculation config:', error);
+        });
+});
 </script>
 {% endblock %}
