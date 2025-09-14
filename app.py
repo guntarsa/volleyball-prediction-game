@@ -1,5 +1,8 @@
 import os
 import csv
+import hashlib
+import random
+import logging
 from datetime import datetime, timezone, timedelta
 import pytz
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
@@ -8,6 +11,14 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
+
+# AI functionality imports
+try:
+    import anthropic
+    CLAUDE_AVAILABLE = True
+except ImportError:
+    CLAUDE_AVAILABLE = False
+    logging.warning("Anthropic package not installed. AI messages will use fallback templates only.")
 
 # Riga timezone
 RIGA_TZ = pytz.timezone('Europe/Riga')
@@ -288,6 +299,25 @@ class RecalculationConfig(db.Model):
             db.session.commit()
         return config
 
+class PlayerMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message_text = db.Column(db.Text, nullable=False)
+    message_category = db.Column(db.String(50), nullable=True)
+    performance_hash = db.Column(db.String(32), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    api_calls_used = db.Column(db.Integer, default=1)
+    
+    user = db.relationship('User', backref=db.backref('messages', lazy=True))
+
+class DailyApiUsage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, unique=True, nullable=False)
+    calls_made = db.Column(db.Integer, default=0)
+    daily_limit = db.Column(db.Integer, default=100)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     prediction_deadline = db.Column(db.DateTime, nullable=False)
@@ -304,6 +334,325 @@ class TournamentConfig(db.Model):
     
     def are_results_available(self):
         return self.is_finalized and all([self.first_place_result, self.second_place_result, self.third_place_result])
+
+# Performance Analysis Functions
+def calculate_performance_hash(user_id):
+    """Calculate a hash based on user's current performance metrics"""
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    
+    # Get recent performance data (last 7 days of finished games)
+    recent_cutoff = datetime.utcnow() - timedelta(days=7)
+    recent_predictions = db.session.query(Prediction).join(Game).filter(
+        Prediction.user_id == user_id,
+        Game.is_finished == True,
+        Game.game_date >= recent_cutoff,
+        Prediction.team1_score.isnot(None)  # Only real predictions
+    ).all()
+    
+    # Calculate metrics
+    total_score = user.get_total_score()
+    total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
+    correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
+    accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
+    
+    # Recent performance
+    recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
+    recent_total = len(recent_predictions)
+    recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
+    recent_points = sum([p.points or 0 for p in recent_predictions])
+    
+    # Create hash string
+    hash_data = f"{total_score}_{total_predictions}_{accuracy}_{recent_accuracy}_{recent_points}_{recent_total}"
+    return hashlib.md5(hash_data.encode()).hexdigest()
+
+def analyze_user_performance(user_id):
+    """Analyze user performance and return category and metrics"""
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    
+    # Get all users for ranking comparison
+    all_users = User.query.all()
+    user_scores = [(u.get_total_score(), u.id) for u in all_users]
+    user_scores.sort(reverse=True)
+    user_rank = next((i + 1 for i, (score, uid) in enumerate(user_scores) if uid == user_id), len(user_scores))
+    
+    # Calculate metrics
+    total_score = user.get_total_score()
+    total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
+    correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
+    accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
+    
+    # Recent performance (last 5 games)
+    recent_predictions = db.session.query(Prediction).join(Game).filter(
+        Prediction.user_id == user_id,
+        Game.is_finished == True,
+        Prediction.team1_score.isnot(None)  # Only real predictions
+    ).order_by(Game.game_date.desc()).limit(5).all()
+    
+    recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
+    recent_total = len(recent_predictions)
+    recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
+    
+    # Determine performance category
+    category = "newcomer"
+    if total_predictions >= 5:
+        if user_rank == 1:
+            category = "champion"
+        elif user_rank <= 3:
+            category = "top_performer"
+        elif accuracy >= 70:
+            category = "accuracy_master"
+        elif accuracy >= 50:
+            category = "solid_predictor"
+        elif recent_accuracy > accuracy and recent_total >= 3:
+            category = "improving"
+        elif recent_accuracy < accuracy - 10 and recent_total >= 3:
+            category = "struggling"
+        else:
+            category = "average"
+    
+    return {
+        'category': category,
+        'total_score': total_score,
+        'rank': user_rank,
+        'total_players': len(all_users),
+        'accuracy': accuracy,
+        'recent_accuracy': recent_accuracy,
+        'total_predictions': total_predictions,
+        'recent_total': recent_total,
+        'correct_predictions': correct_predictions,
+        'recent_correct': recent_correct
+    }
+
+class AIMessageGenerator:
+    """Generate AI-powered inspirational messages for players"""
+    
+    def __init__(self):
+        self.daily_limit = 100
+        self.cache_duration_hours = 24
+        
+        # Fallback templates by category
+        self.fallback_templates = {
+            'champion': [
+                "🏆 Outstanding work, {name}! You're leading the pack with {total_score} points. Keep up the excellent predictions!",
+                "👑 You're the prediction champion with {accuracy}% accuracy! Your consistency is truly impressive.",
+                "🌟 Top of the leaderboard! Your {total_score} points show your volleyball expertise. Stay strong!"
+            ],
+            'top_performer': [
+                "🥇 Great job, {name}! Rank #{rank} with {accuracy}% accuracy shows your prediction skills are on point!",
+                "🚀 You're in the top 3 with {total_score} points! Your dedication is paying off beautifully.",
+                "⭐ Excellent performance! Rank #{rank} out of {total_players} players - you're doing amazing!"
+            ],
+            'accuracy_master': [
+                "🎯 Incredible accuracy of {accuracy}%! Your prediction precision is truly remarkable.",
+                "🔥 {accuracy}% accuracy with {correct_predictions} correct predictions - you're on fire!",
+                "💯 Your {accuracy}% success rate speaks volumes about your volleyball knowledge!"
+            ],
+            'solid_predictor': [
+                "👍 Solid work with {accuracy}% accuracy! You're building a strong prediction record.",
+                "📈 {total_score} points and climbing! Your consistent approach is working well.",
+                "💪 Good predictions with {correct_predictions} correct calls! Keep the momentum going!"
+            ],
+            'improving': [
+                "📈 Love the upward trend! Your recent {recent_accuracy}% accuracy shows real improvement!",
+                "🌱 Great progress! Your recent predictions are much stronger - keep growing!",
+                "🔥 You're heating up! Recent accuracy of {recent_accuracy}% vs overall {accuracy}% - excellent trend!"
+            ],
+            'struggling': [
+                "💪 Every champion faces challenges! Your {total_predictions} predictions show dedication - keep pushing!",
+                "🌟 Tough stretch, but you've got this! Focus on the next match and trust your instincts.",
+                "🎯 Your {correct_predictions} correct predictions prove you can do it - stay confident!"
+            ],
+            'average': [
+                "⚡ You're in the game with {total_score} points! Every prediction is a chance to climb higher!",
+                "🎲 {total_predictions} predictions show commitment! Trust your knowledge and keep going!",
+                "🌊 Riding the waves of volleyball predictions! Your {accuracy}% accuracy has room to grow!"
+            ],
+            'newcomer': [
+                "🎉 Welcome to the prediction game! Every expert was once a beginner - your journey starts now!",
+                "🌱 Fresh start, fresh possibilities! Each prediction is a learning opportunity.",
+                "🚀 New player energy! Jump in and start building your prediction legacy!"
+            ]
+        }
+    
+    def get_or_create_message(self, user_id):
+        """Get cached message or generate new one for user"""
+        # Calculate current performance hash
+        perf_hash = calculate_performance_hash(user_id)
+        if not perf_hash:
+            return self._get_fallback_message(user_id)
+        
+        # Check for existing cached message
+        cached_message = PlayerMessage.query.filter_by(
+            user_id=user_id,
+            performance_hash=perf_hash
+        ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
+        
+        if cached_message:
+            return {
+                'text': cached_message.message_text,
+                'category': cached_message.message_category,
+                'cached': True
+            }
+        
+        # Check daily API limits
+        if not self._can_make_api_call():
+            return self._get_fallback_message(user_id)
+        
+        # Generate new message
+        if CLAUDE_AVAILABLE:
+            try:
+                message_data = self._generate_claude_message(user_id)
+                if message_data:
+                    # Cache the message
+                    self._cache_message(user_id, message_data, perf_hash)
+                    return message_data
+            except Exception as e:
+                logging.error(f"Error generating Claude message for user {user_id}: {str(e)}")
+        
+        # Fallback to template
+        return self._get_fallback_message(user_id)
+    
+    def _can_make_api_call(self):
+        """Check if we can make another API call today"""
+        today = datetime.utcnow().date()
+        usage = DailyApiUsage.query.filter_by(date=today).first()
+        
+        if not usage:
+            # Create new usage record
+            usage = DailyApiUsage(date=today, calls_made=0)
+            db.session.add(usage)
+            db.session.commit()
+        
+        return usage.calls_made < self.daily_limit
+    
+    def _increment_api_usage(self):
+        """Increment daily API usage counter"""
+        today = datetime.utcnow().date()
+        usage = DailyApiUsage.query.filter_by(date=today).first()
+        
+        if not usage:
+            usage = DailyApiUsage(date=today, calls_made=1)
+            db.session.add(usage)
+        else:
+            usage.calls_made += 1
+        
+        db.session.commit()
+    
+    def _generate_claude_message(self, user_id):
+        """Generate message using Claude API"""
+        # Analyze user performance
+        analysis = analyze_user_performance(user_id)
+        if not analysis:
+            return None
+        
+        user = User.query.get(user_id)
+        
+        # Create prompt for Claude
+        prompt = f"""Generate a short, inspirational message (max 150 characters) for a volleyball prediction game player.
+
+Player: {user.name}
+Category: {analysis['category']}
+Rank: #{analysis['rank']} out of {analysis['total_players']}
+Total Score: {analysis['total_score']} points
+Accuracy: {analysis['accuracy']}% ({analysis['correct_predictions']}/{analysis['total_predictions']})
+Recent Form: {analysis['recent_accuracy']}% in last {analysis['recent_total']} games
+
+The message should be:
+- Encouraging and positive
+- Specific to their performance
+- Include relevant emojis
+- Max 150 characters
+- Mention key stats when relevant
+
+Categories explained:
+- champion: #1 player
+- top_performer: Top 3
+- accuracy_master: High accuracy (70%+)
+- solid_predictor: Good accuracy (50-70%)
+- improving: Recent performance better than overall
+- struggling: Recent performance worse
+- average: Middle of the pack
+- newcomer: New player (under 5 predictions)
+
+Return only the message text, no explanation."""
+
+        try:
+            client = anthropic.Anthropic(api_key=os.getenv('CLAUDE_API_KEY'))
+            response = client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            message_text = response.content[0].text.strip()
+            
+            # Increment API usage
+            self._increment_api_usage()
+            
+            return {
+                'text': message_text,
+                'category': analysis['category'],
+                'cached': False
+            }
+            
+        except Exception as e:
+            logging.error(f"Claude API error: {str(e)}")
+            return None
+    
+    def _get_fallback_message(self, user_id):
+        """Generate message using fallback templates"""
+        analysis = analyze_user_performance(user_id)
+        if not analysis:
+            return {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
+        
+        user = User.query.get(user_id)
+        category = analysis['category']
+        templates = self.fallback_templates.get(category, self.fallback_templates['average'])
+        
+        # Select random template
+        template = random.choice(templates)
+        
+        # Format with user data
+        message = template.format(
+            name=user.name,
+            total_score=analysis['total_score'],
+            rank=analysis['rank'],
+            total_players=analysis['total_players'],
+            accuracy=analysis['accuracy'],
+            recent_accuracy=analysis['recent_accuracy'],
+            correct_predictions=analysis['correct_predictions'],
+            total_predictions=analysis['total_predictions']
+        )
+        
+        return {
+            'text': message,
+            'category': category,
+            'cached': False
+        }
+    
+    def _cache_message(self, user_id, message_data, perf_hash):
+        """Cache generated message in database"""
+        expires_at = datetime.utcnow() + timedelta(hours=self.cache_duration_hours)
+        
+        # Remove old messages for this user
+        PlayerMessage.query.filter_by(user_id=user_id).delete()
+        
+        # Create new cached message
+        cached_message = PlayerMessage(
+            user_id=user_id,
+            message_text=message_data['text'],
+            message_category=message_data['category'],
+            performance_hash=perf_hash,
+            expires_at=expires_at,
+            api_calls_used=1 if not message_data.get('cached', False) else 0
+        )
+        
+        db.session.add(cached_message)
+        db.session.commit()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -654,7 +1003,18 @@ def predictions():
 def leaderboard():
     users = User.query.all()
     user_stats = []
+    
+    # Initialize AI message generator
+    ai_generator = AIMessageGenerator()
+    
     for user in users:
+        # Get AI-generated message for the user
+        try:
+            message_data = ai_generator.get_or_create_message(user.id)
+        except Exception as e:
+            logging.error(f"Error getting AI message for user {user.id}: {str(e)}")
+            message_data = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
+        
         stats = {
             'id': user.id,
             'name': user.name,
@@ -662,7 +1022,10 @@ def leaderboard():
             'all_predictions_filled': user.get_all_predictions_filled(),
             'total_predictions': user.get_total_predictions(),
             'correct_predictions': user.get_correct_predictions(),
-            'accuracy': user.get_accuracy_percentage()
+            'accuracy': user.get_accuracy_percentage(),
+            'ai_message': message_data['text'],
+            'ai_category': message_data['category'],
+            'message_cached': message_data.get('cached', False)
         }
         user_stats.append(stats)
     
@@ -1427,16 +1790,20 @@ def user_profile(user_id):
                       .all())
     
     current_time = get_riga_time()
-    predictions = []
+    all_deadline_passed_predictions = []
     for pred in all_predictions:
         deadline = to_riga_time(pred.game.prediction_deadline)
         if current_time >= deadline:
-            predictions.append(pred)
+            all_deadline_passed_predictions.append(pred)
+    
+    # Include all predictions for detailed display (both real and default predictions)
+    predictions = all_deadline_passed_predictions
     
     # Calculate user stats using the updated methods
     total_predictions = user.get_total_predictions()
     correct_predictions = user.get_correct_predictions()
-    total_points = sum([p.points for p in predictions if p.points is not None])
+    # Use all deadline-passed predictions (including default) for total points calculation
+    total_points = sum([p.points for p in all_deadline_passed_predictions if p.points is not None])
     accuracy = user.get_accuracy_percentage()
     
     # Add tournament points if available
@@ -1467,18 +1834,22 @@ def match_detail(game_id):
         flash('Match predictions are not yet visible.', 'warning')
         return redirect(url_for('predictions'))
     
-    # Get all predictions for this game
-    predictions = (Prediction.query
-                  .filter_by(game_id=game_id)
-                  .join(User)
-                  .order_by(User.name)
-                  .all())
+    # Get all predictions for this game, but only show real predictions
+    all_predictions = (Prediction.query
+                      .filter_by(game_id=game_id)
+                      .join(User)
+                      .order_by(User.name)
+                      .all())
     
-    # Calculate some stats
-    total_predictions = len([p for p in predictions if p.team1_score is not None])
+    # Include all predictions for detailed display (both real and default predictions)
+    predictions = all_predictions
+    
+    # Calculate some stats based on real predictions only
+    real_predictions = [p for p in all_predictions if not p.is_default_prediction()]
+    total_predictions = len(real_predictions)
     if game.is_finished:
-        correct_predictions = len([p for p in predictions if p.points and p.points > 0])
-        perfect_predictions = len([p for p in predictions if p.points == 6])
+        correct_predictions = len([p for p in real_predictions if p.points and p.points > 0])
+        perfect_predictions = len([p for p in real_predictions if p.points == 6])
     else:
         correct_predictions = 0
         perfect_predictions = 0
@@ -1531,9 +1902,11 @@ def all_predictions():
     # Get all predictions for these games
     games_with_predictions = []
     for game in games:
-        predictions = Prediction.query.filter_by(game_id=game.id).join(User).all()
+        all_predictions = Prediction.query.filter_by(game_id=game.id).join(User).all()
+        
+        # Include both real and default predictions for display, but separate them
         predictions_data = []
-        for pred in predictions:
+        for pred in all_predictions:
             predictions_data.append({
                 'user_name': pred.user.name,
                 'team1_score': pred.team1_score,
@@ -1542,10 +1915,13 @@ def all_predictions():
                 'points': pred.points
             })
         
+        # Count only real predictions for the summary
+        real_predictions_count = len([pred for pred in all_predictions if not pred.is_default_prediction()])
+        
         games_with_predictions.append({
             'game': game,
             'predictions': predictions_data,
-            'total_predictions': len(predictions_data)
+            'total_predictions': real_predictions_count  # Still counts only real predictions
         })
     
     # Get unique dates and pools for filtering - use games with passed deadlines

@@ -46,7 +46,7 @@
                                 <th scope="col" class="text-center">Rank</th>
                                 <th scope="col">Player</th>
                                 <th scope="col" class="text-center">Total Score</th>
-                                <th scope="col" class="text-center" title="All predictions filled out by user">All Predictions</th>
+                                <th scope="col" class="text-center" title="Actual predictions made by user (excludes default points)">Real Predictions</th>
                                 <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
                                 <th scope="col" class="text-center" title="Correct predictions (2+ points)">Correct</th>
                                 <th scope="col" class="text-center" title="Accuracy based on finished games">Accuracy</th>
@@ -72,6 +72,9 @@
                                     </a>
                                     {% if loop.index == 1 %}
                                         <span class="badge bg-warning text-dark ms-2">Leader</span>
+                                    {% endif %}
+                                    {% if user.ai_message %}
+                                        <br><small class="text-muted fst-italic">{{ user.ai_message }}</small>
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
@@ -121,9 +124,14 @@
                                         <a href="{{ url_for('user_profile', user_id=user.id) }}" class="text-decoration-none">
                                             <h6 class="mb-1 fw-bold">{{ user.name }}</h6>
                                         </a>
+                                        {% if user.ai_message %}
+                                            <div class="mb-2">
+                                                <small class="text-muted fst-italic">{{ user.ai_message }}</small>
+                                            </div>
+                                        {% endif %}
                                         <div class="d-flex gap-3">
-                                            <small class="text-muted">
-                                                <i class="fas fa-list me-1"></i>{{ user.all_predictions_filled }}
+                                            <small class="text-muted" title="Real predictions made">
+                                                <i class="fas fa-user-edit me-1"></i>{{ user.all_predictions_filled }}
                                             </small>
                                             <small class="text-muted">
                                                 <i class="fas fa-gamepad me-1"></i>{{ user.total_predictions }}
@@ -161,14 +169,15 @@
                 <div class="row">
                     <div class="col-md-6">
                         <small class="text-muted">
-                            <strong>All Predictions:</strong> Total predictions filled out (regardless of deadline)<br>
-                            <strong>Finished Games:</strong> Predictions for games with final results
+                            <strong>Real Predictions:</strong> Actual predictions made by user (excludes default points)<br>
+                            <strong>Finished Games:</strong> Predictions for games with final results (includes default points)
                         </small>
                     </div>
                     <div class="col-md-6">
                         <small class="text-muted">
                             <strong>Correct:</strong> Predictions earning 2+ points (truly correct)<br>
-                            <strong>Accuracy:</strong> Percentage based on finished games only
+                            <strong>Accuracy:</strong> Based on real predictions only<br>
+                            <strong>Total Score:</strong> Includes both real predictions and default points
                         </small>
                     </div>
                 </div>

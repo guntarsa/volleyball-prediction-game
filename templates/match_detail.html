@@ -98,7 +98,7 @@
                     <div class="row text-center">
                         <div class="col-4">
                             <h4 class="text-primary mb-0">{{ stats.total_predictions }}</h4>
-                            <small class="text-muted">Total Predictions</small>
+                            <small class="text-muted">Real Predictions</small>
                         </div>
                         {% if game.is_finished %}
                         <div class="col-4">
@@ -127,7 +127,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-users"></i> All Player Predictions
+                        <i class="fas fa-users"></i> All Player Predictions & Points
                         <span class="badge bg-secondary ms-2">{{ predictions|length }}</span>
                     </h5>
                 </div>
@@ -155,7 +155,8 @@
                                         <div class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</div>
                                         <small class="text-muted">Predicted: {{ prediction.predicted_winner }}</small>
                                     {% else %}
-                                        <span class="text-muted">No prediction</span>
+                                        <div class="text-muted fst-italic">Default points</div>
+                                        <small class="text-muted">No prediction made</small>
                                     {% endif %}
                                 </div>
                                 <div class="text-end">
@@ -206,7 +207,7 @@
                                             {% if prediction.team1_score is not none %}
                                                 <span class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</span>
                                             {% else %}
-                                                <span class="text-muted">No prediction</span>
+                                                <span class="text-muted fst-italic">Default points</span>
                                             {% endif %}
                                         </td>
                                         <td>

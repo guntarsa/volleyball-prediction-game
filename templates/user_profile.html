@@ -39,7 +39,7 @@
                         <div class="col-6 col-md-3">
                             <div class="border-end">
                                 <h4 class="text-primary mb-0">{{ stats.total_predictions }}</h4>
-                                <small class="text-muted">Predictions</small>
+                                <small class="text-muted">Real Predictions</small>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
@@ -70,7 +70,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-list"></i> All Predictions
+                        <i class="fas fa-list"></i> All Predictions & Points
                         <span class="badge bg-secondary ms-2">{{ predictions|length }}</span>
                     </h5>
                 </div>
@@ -128,7 +128,8 @@
                                             <span class="fw-bold">{{ prediction.team1_score }} - {{ prediction.team2_score }}</span>
                                             <br><small class="text-muted">{{ prediction.predicted_winner }}</small>
                                         {% else %}
-                                            <span class="text-muted">No prediction</span>
+                                            <span class="text-muted fst-italic">Default points</span>
+                                            <br><small class="text-muted">No prediction made</small>
                                         {% endif %}
                                     </td>
                                     <td>

@@ -101,8 +101,8 @@
                         </div>
                     {% endif %}
                     <div class="mt-1">
-                        <span class="badge bg-light text-dark">
-                            {{ total_predictions }} predictions
+                        <span class="badge bg-light text-dark" title="Number of real predictions made by players">
+                            {{ total_predictions }} real predictions
                         </span>
                     </div>
                 </div>
@@ -129,9 +129,15 @@
                                     <strong>{{ pred.user_name }}</strong>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-primary fs-6">
-                                        {{ pred.team1_score }} - {{ pred.team2_score }}
-                                    </span>
+                                    {% if pred.team1_score is not none %}
+                                        <span class="badge bg-primary fs-6">
+                                            {{ pred.team1_score }} - {{ pred.team2_score }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fs-6">
+                                            Default
+                                        </span>
+                                    {% endif %}
                                 </td>
                                 <td class="text-center">
                                     {% if pred.predicted_winner %}
@@ -162,7 +168,11 @@
                                 <div class="col-6">
                                     <h6 class="mb-1 fw-bold">{{ pred.user_name }}</h6>
                                     <div class="prediction-score">
-                                        <span class="badge bg-primary">{{ pred.team1_score }} - {{ pred.team2_score }}</span>
+                                        {% if pred.team1_score is not none %}
+                                            <span class="badge bg-primary">{{ pred.team1_score }} - {{ pred.team2_score }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Default</span>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 <div class="col-6 text-end">
