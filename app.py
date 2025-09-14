@@ -340,80 +340,138 @@ class TournamentConfig(db.Model):
 # Performance Analysis Functions
 def calculate_performance_hash(user_id):
     """Calculate a hash based on user's current performance metrics"""
-    user = User.query.get(user_id)
-    if not user:
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return None
+        
+        # Get recent performance data (last 7 days of finished games)
+        recent_cutoff = datetime.utcnow() - timedelta(days=7)
+        recent_predictions = db.session.query(Prediction).join(Game).filter(
+            Prediction.user_id == user_id,
+            Game.is_finished == True,
+            Game.game_date >= recent_cutoff,
+            Prediction.team1_score.isnot(None)  # Only real predictions
+        ).all()
+        
+        # Calculate metrics
+        total_score = user.get_total_score()
+        total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
+        correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
+        accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
+        
+        # Recent performance
+        recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
+        recent_total = len(recent_predictions)
+        recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
+        recent_points = sum([p.points or 0 for p in recent_predictions])
+        
+        # Create hash string
+        hash_data = f"{total_score}_{total_predictions}_{accuracy}_{recent_accuracy}_{recent_points}_{recent_total}"
+        return hashlib.md5(hash_data.encode()).hexdigest()
+        
+    except Exception as e:
+        logging.error(f"Error calculating performance hash for user {user_id}: {str(e)}")
+        db.session.rollback()
         return None
-    
-    # Get recent performance data (last 7 days of finished games)
-    recent_cutoff = datetime.utcnow() - timedelta(days=7)
-    recent_predictions = db.session.query(Prediction).join(Game).filter(
-        Prediction.user_id == user_id,
-        Game.is_finished == True,
-        Game.game_date >= recent_cutoff,
-        Prediction.team1_score.isnot(None)  # Only real predictions
-    ).all()
-    
-    # Calculate metrics
-    total_score = user.get_total_score()
-    total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
-    correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
-    accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
-    
-    # Recent performance
-    recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
-    recent_total = len(recent_predictions)
-    recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
-    recent_points = sum([p.points or 0 for p in recent_predictions])
-    
-    # Create hash string
-    hash_data = f"{total_score}_{total_predictions}_{accuracy}_{recent_accuracy}_{recent_points}_{recent_total}"
-    return hashlib.md5(hash_data.encode()).hexdigest()
 
 def calculate_latest_results_hash(user_id):
     """Calculate hash based on latest game results user hasn't seen"""
-    # Get latest finished games (recent games that have results)
-    latest_games = Game.query.filter(
-        Game.is_finished == True,
-        Game.team1_score.isnot(None),
-        Game.team2_score.isnot(None)
-    ).order_by(Game.game_date.desc()).limit(5).all()
-    
-    # Include user's predictions for these games
-    user_predictions = {}
-    if latest_games:
-        game_ids = [g.id for g in latest_games]
-        predictions = Prediction.query.filter(
-            Prediction.user_id == user_id,
-            Prediction.game_id.in_(game_ids)
-        ).all()
-        user_predictions = {p.game_id: p for p in predictions}
-    
-    # Create hash from game results and user predictions
-    hash_data = ""
-    for game in latest_games:
-        pred = user_predictions.get(game.id)
-        pred_info = f"{pred.team1_score}-{pred.team2_score}" if pred and pred.team1_score is not None else "none"
-        points = pred.points if pred else 0
-        hash_data += f"{game.id}_{game.team1_score}_{game.team2_score}_{pred_info}_{points}_"
-    
-    return hashlib.md5(hash_data.encode()).hexdigest() if hash_data else None
+    try:
+        # Get latest finished games (recent games that have results)
+        latest_games = Game.query.filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None)
+        ).order_by(Game.game_date.desc()).limit(5).all()
+        
+        # Include user's predictions for these games
+        user_predictions = {}
+        if latest_games:
+            game_ids = [g.id for g in latest_games]
+            predictions = Prediction.query.filter(
+                Prediction.user_id == user_id,
+                Prediction.game_id.in_(game_ids)
+            ).all()
+            user_predictions = {p.game_id: p for p in predictions}
+        
+        # Create hash from game results and user predictions
+        hash_data = ""
+        for game in latest_games:
+            pred = user_predictions.get(game.id)
+            pred_info = f"{pred.team1_score}-{pred.team2_score}" if pred and pred.team1_score is not None else "none"
+            points = pred.points if pred else 0
+            hash_data += f"{game.id}_{game.team1_score}_{game.team2_score}_{pred_info}_{points}_"
+        
+        return hashlib.md5(hash_data.encode()).hexdigest() if hash_data else None
+        
+    except Exception as e:
+        logging.error(f"Error calculating latest results hash for user {user_id}: {str(e)}")
+        db.session.rollback()
+        return None
 
 def get_latest_results_summary(user_id):
     """Get detailed summary of latest results user participated in"""
-    # First try to get games from last 24 hours
-    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
-    recent_games = db.session.query(Game).join(Prediction).filter(
-        Game.is_finished == True,
-        Game.team1_score.isnot(None),
-        Game.team2_score.isnot(None),
-        Game.game_date >= recent_cutoff,
-        Prediction.user_id == user_id
-    ).order_by(Game.game_date.desc()).limit(3).all()
-    
-    # If we have recent games, use them
-    if recent_games:
+    try:
+        # First try to get games from last 24 hours
+        recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+        recent_games = db.session.query(Game).join(Prediction).filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None),
+            Game.game_date >= recent_cutoff,
+            Prediction.user_id == user_id
+        ).order_by(Game.game_date.desc()).limit(3).all()
+        
+        # If we have recent games, use them
+        if recent_games:
+            results = []
+            for game in recent_games:
+                prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
+                if prediction:
+                    correct = prediction.points and prediction.points >= 2
+                    results.append({
+                        'game': game,
+                        'prediction': prediction,
+                        'correct': correct,
+                        'points': prediction.points or 0,
+                        'is_recent': True
+                    })
+            return results
+        
+        # Otherwise get the most recent completed games (up to last 7 days)
+        week_cutoff = datetime.utcnow() - timedelta(days=7)
+        latest_games = db.session.query(Game).join(Prediction).filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None),
+            Game.game_date >= week_cutoff,
+            Prediction.user_id == user_id
+        ).order_by(Game.game_date.desc()).limit(2).all()
+        
+        if not latest_games:
+            # Last resort - get any completed game
+            last_game = db.session.query(Game).join(Prediction).filter(
+                Game.is_finished == True,
+                Game.team1_score.isnot(None),
+                Game.team2_score.isnot(None),
+                Prediction.user_id == user_id
+            ).order_by(Game.game_date.desc()).first()
+            
+            if last_game:
+                prediction = Prediction.query.filter_by(user_id=user_id, game_id=last_game.id).first()
+                if prediction:
+                    return [{
+                        'game': last_game,
+                        'prediction': prediction,
+                        'correct': prediction.points and prediction.points >= 2,
+                        'points': prediction.points or 0,
+                        'is_latest': True
+                    }]
+            return None
+        
         results = []
-        for game in recent_games:
+        for game in latest_games:
             prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
             if prediction:
                 correct = prediction.points and prediction.points >= 2
@@ -422,55 +480,15 @@ def get_latest_results_summary(user_id):
                     'prediction': prediction,
                     'correct': correct,
                     'points': prediction.points or 0,
-                    'is_recent': True
+                    'is_recent': False
                 })
-        return results
-    
-    # Otherwise get the most recent completed games (up to last 7 days)
-    week_cutoff = datetime.utcnow() - timedelta(days=7)
-    latest_games = db.session.query(Game).join(Prediction).filter(
-        Game.is_finished == True,
-        Game.team1_score.isnot(None),
-        Game.team2_score.isnot(None),
-        Game.game_date >= week_cutoff,
-        Prediction.user_id == user_id
-    ).order_by(Game.game_date.desc()).limit(2).all()
-    
-    if not latest_games:
-        # Last resort - get any completed game
-        last_game = db.session.query(Game).join(Prediction).filter(
-            Game.is_finished == True,
-            Game.team1_score.isnot(None),
-            Game.team2_score.isnot(None),
-            Prediction.user_id == user_id
-        ).order_by(Game.game_date.desc()).first()
         
-        if last_game:
-            prediction = Prediction.query.filter_by(user_id=user_id, game_id=last_game.id).first()
-            if prediction:
-                return [{
-                    'game': last_game,
-                    'prediction': prediction,
-                    'correct': prediction.points and prediction.points >= 2,
-                    'points': prediction.points or 0,
-                    'is_latest': True
-                }]
+        return results
+        
+    except Exception as e:
+        logging.error(f"Error getting latest results summary for user {user_id}: {str(e)}")
+        db.session.rollback()
         return None
-    
-    results = []
-    for game in latest_games:
-        prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
-        if prediction:
-            correct = prediction.points and prediction.points >= 2
-            results.append({
-                'game': game,
-                'prediction': prediction,
-                'correct': correct,
-                'points': prediction.points or 0,
-                'is_recent': False
-            })
-    
-    return results
 
 def get_detailed_context_for_ai(user_id):
     """Get very detailed context for AI message generation"""
@@ -633,88 +651,110 @@ class AIMessageGenerator:
     
     def get_or_create_message(self, user_id):
         """Get cached message or generate new one for user"""
-        # Calculate current performance and results hashes
-        perf_hash = calculate_performance_hash(user_id)
-        results_hash = calculate_latest_results_hash(user_id)
-        
-        if not perf_hash:
+        try:
+            # Calculate current performance and results hashes
+            perf_hash = calculate_performance_hash(user_id)
+            results_hash = calculate_latest_results_hash(user_id)
+            
+            if not perf_hash:
+                return self._get_fallback_message(user_id)
+            
+            # Check for existing cached message
+            cached_message = PlayerMessage.query.filter_by(
+                user_id=user_id
+            ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
+            
+            # Check if we need new message due to new results or performance change
+            need_new_message = (
+                not cached_message or
+                cached_message.performance_hash != perf_hash or
+                (results_hash and cached_message.latest_results_hash != results_hash) or
+                not cached_message.last_viewed_at or
+                (datetime.utcnow() - cached_message.created_at).total_seconds() > 3600  # 1 hour
+            )
+            
+            if cached_message and not need_new_message:
+                return {
+                    'text': cached_message.message_text,
+                    'category': cached_message.message_category,
+                    'cached': True,
+                    'message_id': cached_message.id
+                }
+            
+            # Check daily API limits
+            if not self._can_make_api_call():
+                return self._get_fallback_message(user_id)
+            
+            # Generate new message
+            if GEMINI_AVAILABLE:
+                try:
+                    message_data = self._generate_gemini_message(user_id)
+                    if message_data:
+                        # Cache the message
+                        self._cache_message(user_id, message_data, perf_hash, results_hash)
+                        return message_data
+                except Exception as e:
+                    logging.error(f"Error generating Gemini message for user {user_id}: {str(e)}")
+                    db.session.rollback()  # Rollback any failed transaction
+            
+            # Fallback to template
             return self._get_fallback_message(user_id)
-        
-        # Check for existing cached message
-        cached_message = PlayerMessage.query.filter_by(
-            user_id=user_id
-        ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
-        
-        # Check if we need new message due to new results or performance change
-        need_new_message = (
-            not cached_message or
-            cached_message.performance_hash != perf_hash or
-            (results_hash and cached_message.latest_results_hash != results_hash) or
-            not cached_message.last_viewed_at or
-            (datetime.utcnow() - cached_message.created_at).total_seconds() > 3600  # 1 hour
-        )
-        
-        if cached_message and not need_new_message:
-            return {
-                'text': cached_message.message_text,
-                'category': cached_message.message_category,
-                'cached': True,
-                'message_id': cached_message.id
-            }
-        
-        # Check daily API limits
-        if not self._can_make_api_call():
-            return self._get_fallback_message(user_id)
-        
-        # Generate new message
-        if GEMINI_AVAILABLE:
-            try:
-                message_data = self._generate_gemini_message(user_id)
-                if message_data:
-                    # Cache the message
-                    self._cache_message(user_id, message_data, perf_hash, results_hash)
-                    return message_data
-            except Exception as e:
-                logging.error(f"Error generating Gemini message for user {user_id}: {str(e)}")
-        
-        # Fallback to template
-        return self._get_fallback_message(user_id)
+            
+        except Exception as e:
+            logging.error(f"Database error in get_or_create_message for user {user_id}: {str(e)}")
+            db.session.rollback()  # Rollback any failed transaction
+            # Return a safe fallback message
+            return {'text': '🎯 Ready for your next prediction!', 'category': 'general', 'cached': False}
     
     def mark_message_viewed(self, user_id):
         """Mark the current message as viewed by the user"""
-        cached_message = PlayerMessage.query.filter_by(
-            user_id=user_id
-        ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
-        
-        if cached_message:
-            cached_message.last_viewed_at = datetime.utcnow()
-            db.session.commit()
+        try:
+            cached_message = PlayerMessage.query.filter_by(
+                user_id=user_id
+            ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
+            
+            if cached_message:
+                cached_message.last_viewed_at = datetime.utcnow()
+                db.session.commit()
+        except Exception as e:
+            logging.error(f"Error marking message viewed for user {user_id}: {str(e)}")
+            db.session.rollback()
     
     def _can_make_api_call(self):
         """Check if we can make another API call today"""
-        today = datetime.utcnow().date()
-        usage = DailyApiUsage.query.filter_by(date=today).first()
-        
-        if not usage:
-            # Create new usage record
-            usage = DailyApiUsage(date=today, calls_made=0)
-            db.session.add(usage)
-            db.session.commit()
-        
-        return usage.calls_made < self.daily_limit
+        try:
+            today = datetime.utcnow().date()
+            usage = DailyApiUsage.query.filter_by(date=today).first()
+            
+            if not usage:
+                # Create new usage record
+                usage = DailyApiUsage(date=today, calls_made=0)
+                db.session.add(usage)
+                db.session.commit()
+            
+            return usage.calls_made < self.daily_limit
+        except Exception as e:
+            logging.error(f"Error checking API usage: {str(e)}")
+            db.session.rollback()
+            # Default to not allowing API calls if we can't check
+            return False
     
     def _increment_api_usage(self):
         """Increment daily API usage counter"""
-        today = datetime.utcnow().date()
-        usage = DailyApiUsage.query.filter_by(date=today).first()
-        
-        if not usage:
-            usage = DailyApiUsage(date=today, calls_made=1)
-            db.session.add(usage)
-        else:
-            usage.calls_made += 1
-        
-        db.session.commit()
+        try:
+            today = datetime.utcnow().date()
+            usage = DailyApiUsage.query.filter_by(date=today).first()
+            
+            if not usage:
+                usage = DailyApiUsage(date=today, calls_made=1)
+                db.session.add(usage)
+            else:
+                usage.calls_made += 1
+            
+            db.session.commit()
+        except Exception as e:
+            logging.error(f"Error incrementing API usage: {str(e)}")
+            db.session.rollback()
     
     def _generate_gemini_message(self, user_id):
         """Generate message using Gemini API with detailed context"""
@@ -877,24 +917,28 @@ Generate the message now:"""
     
     def _cache_message(self, user_id, message_data, perf_hash, results_hash=None):
         """Cache generated message in database"""
-        expires_at = datetime.utcnow() + timedelta(hours=self.cache_duration_hours)
-        
-        # Remove old messages for this user
-        PlayerMessage.query.filter_by(user_id=user_id).delete()
-        
-        # Create new cached message
-        cached_message = PlayerMessage(
-            user_id=user_id,
-            message_text=message_data['text'],
-            message_category=message_data['category'],
-            performance_hash=perf_hash,
-            latest_results_hash=results_hash,
-            expires_at=expires_at,
-            api_calls_used=1 if not message_data.get('cached', False) else 0
-        )
-        
-        db.session.add(cached_message)
-        db.session.commit()
+        try:
+            expires_at = datetime.utcnow() + timedelta(hours=self.cache_duration_hours)
+            
+            # Remove old messages for this user
+            PlayerMessage.query.filter_by(user_id=user_id).delete()
+            
+            # Create new cached message
+            cached_message = PlayerMessage(
+                user_id=user_id,
+                message_text=message_data['text'],
+                message_category=message_data['category'],
+                performance_hash=perf_hash,
+                latest_results_hash=results_hash,
+                expires_at=expires_at,
+                api_calls_used=1 if not message_data.get('cached', False) else 0
+            )
+            
+            db.session.add(cached_message)
+            db.session.commit()
+        except Exception as e:
+            logging.error(f"Error caching message for user {user_id}: {str(e)}")
+            db.session.rollback()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -2405,6 +2449,26 @@ with app.app_context():
                             pass  # Continue if team doesn't exist
                     conn.commit()
                 print("Updated country codes for existing teams")
+        
+        # Check if we need to add new columns to player_message table
+        if 'player_message' in existing_tables:
+            player_message_columns = [col['name'] for col in inspector.get_columns('player_message')]
+            
+            # Add last_viewed_at column if missing
+            if 'last_viewed_at' not in player_message_columns:
+                print("Adding last_viewed_at column to existing PlayerMessage table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE player_message ADD COLUMN last_viewed_at TIMESTAMP'))
+                    conn.commit()
+                print("last_viewed_at column added successfully")
+            
+            # Add latest_results_hash column if missing
+            if 'latest_results_hash' not in player_message_columns:
+                print("Adding latest_results_hash column to existing PlayerMessage table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE player_message ADD COLUMN latest_results_hash VARCHAR(32)'))
+                    conn.commit()
+                print("latest_results_hash column added successfully")
             
     except Exception as e:
         print(f"Database initialization error: {e}")
