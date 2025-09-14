@@ -14,11 +14,11 @@ from functools import wraps
 
 # AI functionality imports
 try:
-    import anthropic
-    CLAUDE_AVAILABLE = True
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
 except ImportError:
-    CLAUDE_AVAILABLE = False
-    logging.warning("Anthropic package not installed. AI messages will use fallback templates only.")
+    GEMINI_AVAILABLE = False
+    logging.warning("Google Generative AI package not installed. AI messages will use fallback templates only.")
 
 # Riga timezone
 RIGA_TZ = pytz.timezone('Europe/Riga')
@@ -503,15 +503,15 @@ class AIMessageGenerator:
             return self._get_fallback_message(user_id)
         
         # Generate new message
-        if CLAUDE_AVAILABLE:
+        if GEMINI_AVAILABLE:
             try:
-                message_data = self._generate_claude_message(user_id)
+                message_data = self._generate_gemini_message(user_id)
                 if message_data:
                     # Cache the message
                     self._cache_message(user_id, message_data, perf_hash)
                     return message_data
             except Exception as e:
-                logging.error(f"Error generating Claude message for user {user_id}: {str(e)}")
+                logging.error(f"Error generating Gemini message for user {user_id}: {str(e)}")
         
         # Fallback to template
         return self._get_fallback_message(user_id)
@@ -542,8 +542,8 @@ class AIMessageGenerator:
         
         db.session.commit()
     
-    def _generate_claude_message(self, user_id):
-        """Generate message using Claude API"""
+    def _generate_gemini_message(self, user_id):
+        """Generate message using Gemini API"""
         # Analyze user performance
         analysis = analyze_user_performance(user_id)
         if not analysis:
@@ -551,7 +551,7 @@ class AIMessageGenerator:
         
         user = User.query.get(user_id)
         
-        # Create prompt for Claude
+        # Create prompt for Gemini
         prompt = f"""Generate a short, inspirational message (max 150 characters) for a volleyball prediction game player.
 
 Player: {user.name}
@@ -581,14 +581,16 @@ Categories explained:
 Return only the message text, no explanation."""
 
         try:
-            client = anthropic.Anthropic(api_key=os.getenv('CLAUDE_API_KEY'))
-            response = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
-            )
+            # Configure Gemini API
+            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
             
-            message_text = response.content[0].text.strip()
+            # Create model
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            # Generate content
+            response = model.generate_content(prompt)
+            
+            message_text = response.text.strip()
             
             # Increment API usage
             self._increment_api_usage()
@@ -600,7 +602,7 @@ Return only the message text, no explanation."""
             }
             
         except Exception as e:
-            logging.error(f"Claude API error: {str(e)}")
+            logging.error(f"Gemini API error: {str(e)}")
             return None
     
     def _get_fallback_message(self, user_id):
