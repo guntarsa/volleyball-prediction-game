@@ -308,6 +308,8 @@ class PlayerMessage(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
     api_calls_used = db.Column(db.Integer, default=1)
+    last_viewed_at = db.Column(db.DateTime, nullable=True)
+    latest_results_hash = db.Column(db.String(32), nullable=True)
     
     user = db.relationship('User', backref=db.backref('messages', lazy=True))
 
@@ -366,6 +368,62 @@ def calculate_performance_hash(user_id):
     # Create hash string
     hash_data = f"{total_score}_{total_predictions}_{accuracy}_{recent_accuracy}_{recent_points}_{recent_total}"
     return hashlib.md5(hash_data.encode()).hexdigest()
+
+def calculate_latest_results_hash(user_id):
+    """Calculate hash based on latest game results user hasn't seen"""
+    # Get latest finished games (last 24 hours)
+    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    latest_games = Game.query.filter(
+        Game.is_finished == True,
+        Game.updated_at >= recent_cutoff
+    ).order_by(Game.game_date.desc()).limit(5).all()
+    
+    # Include user's predictions for these games
+    user_predictions = {}
+    if latest_games:
+        game_ids = [g.id for g in latest_games]
+        predictions = Prediction.query.filter(
+            Prediction.user_id == user_id,
+            Prediction.game_id.in_(game_ids)
+        ).all()
+        user_predictions = {p.game_id: p for p in predictions}
+    
+    # Create hash from game results and user predictions
+    hash_data = ""
+    for game in latest_games:
+        pred = user_predictions.get(game.id)
+        pred_info = f"{pred.team1_score}-{pred.team2_score}" if pred and pred.team1_score is not None else "none"
+        points = pred.points if pred else 0
+        hash_data += f"{game.id}_{game.team1_score}_{game.team2_score}_{pred_info}_{points}_"
+    
+    return hashlib.md5(hash_data.encode()).hexdigest() if hash_data else None
+
+def get_latest_results_summary(user_id):
+    """Get summary of latest results user participated in"""
+    # Get latest finished games (last 24 hours)
+    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    latest_games = db.session.query(Game).join(Prediction).filter(
+        Game.is_finished == True,
+        Game.updated_at >= recent_cutoff,
+        Prediction.user_id == user_id
+    ).order_by(Game.game_date.desc()).limit(3).all()
+    
+    if not latest_games:
+        return None
+    
+    results = []
+    for game in latest_games:
+        prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
+        if prediction:
+            correct = prediction.points and prediction.points >= 2
+            results.append({
+                'game': game,
+                'prediction': prediction,
+                'correct': correct,
+                'points': prediction.points or 0
+            })
+    
+    return results
 
 def analyze_user_performance(user_id):
     """Analyze user performance and return category and metrics"""
@@ -434,68 +492,79 @@ class AIMessageGenerator:
         self.daily_limit = 100
         self.cache_duration_hours = 24
         
-        # Fallback templates by category
+        # Fallback templates by category (20-30 words each)
         self.fallback_templates = {
             'champion': [
-                "🏆 Outstanding work, {name}! You're leading the pack with {total_score} points. Keep up the excellent predictions!",
-                "👑 You're the prediction champion with {accuracy}% accuracy! Your consistency is truly impressive.",
-                "🌟 Top of the leaderboard! Your {total_score} points show your volleyball expertise. Stay strong!"
+                "🏆 Champion leading with {total_score} points! Your {accuracy}% accuracy dominates the competition. Outstanding work!",
+                "👑 Top of the leaderboard! {correct_predictions} correct predictions show your volleyball expertise. Keep winning!",
+                "🌟 Prediction champion! Your consistency at {accuracy}% accuracy keeps you ahead. Stay strong!"
             ],
             'top_performer': [
-                "🥇 Great job, {name}! Rank #{rank} with {accuracy}% accuracy shows your prediction skills are on point!",
-                "🚀 You're in the top 3 with {total_score} points! Your dedication is paying off beautifully.",
-                "⭐ Excellent performance! Rank #{rank} out of {total_players} players - you're doing amazing!"
+                "🥇 Rank #{rank} with {accuracy}% accuracy! Your top 3 position shows real prediction skills. Great job!",
+                "🚀 Top 3 performance with {total_score} points! Your dedication to accurate predictions is paying off beautifully.",
+                "⭐ Excellent #{rank} position! Your {correct_predictions} correct predictions keep you in contention. Amazing work!"
             ],
             'accuracy_master': [
-                "🎯 Incredible accuracy of {accuracy}%! Your prediction precision is truly remarkable.",
-                "🔥 {accuracy}% accuracy with {correct_predictions} correct predictions - you're on fire!",
-                "💯 Your {accuracy}% success rate speaks volumes about your volleyball knowledge!"
+                "🎯 Incredible {accuracy}% accuracy! Your precision with {correct_predictions} correct predictions is truly remarkable. Keep it up!",
+                "🔥 {accuracy}% success rate - you're on fire! Your prediction skills are top tier. Fantastic work!",
+                "💯 Amazing {accuracy}% accuracy! Your volleyball knowledge shines through every prediction. Well done!"
             ],
             'solid_predictor': [
-                "👍 Solid work with {accuracy}% accuracy! You're building a strong prediction record.",
-                "📈 {total_score} points and climbing! Your consistent approach is working well.",
-                "💪 Good predictions with {correct_predictions} correct calls! Keep the momentum going!"
+                "👍 Solid {accuracy}% accuracy! Your {correct_predictions} correct predictions show consistent improvement. Keep building!",
+                "📈 {total_score} points and climbing! Your steady approach to predictions is working well. Great progress!",
+                "💪 Strong {accuracy}% accuracy! Your {correct_predictions} correct calls demonstrate good volleyball instincts. Keep going!"
             ],
             'improving': [
-                "📈 Love the upward trend! Your recent {recent_accuracy}% accuracy shows real improvement!",
-                "🌱 Great progress! Your recent predictions are much stronger - keep growing!",
-                "🔥 You're heating up! Recent accuracy of {recent_accuracy}% vs overall {accuracy}% - excellent trend!"
+                "📈 Love the upward trend! Recent {recent_accuracy}% vs {accuracy}% overall shows real improvement. Keep growing!",
+                "🌱 Great progress! Your recent predictions are much stronger. This improvement trend looks fantastic!",
+                "🔥 You're heating up! Recent form shows {recent_accuracy}% accuracy. This momentum is excellent!"
             ],
             'struggling': [
-                "💪 Every champion faces challenges! Your {total_predictions} predictions show dedication - keep pushing!",
-                "🌟 Tough stretch, but you've got this! Focus on the next match and trust your instincts.",
-                "🎯 Your {correct_predictions} correct predictions prove you can do it - stay confident!"
+                "💪 Tough stretch, but your {total_predictions} predictions show dedication. Champions bounce back - keep pushing!",
+                "🌟 Every expert faces challenges! Your {correct_predictions} correct predictions prove you've got this. Stay confident!",
+                "🎯 Difficult period, but your commitment shines through. Trust your instincts and keep making predictions!"
             ],
             'average': [
-                "⚡ You're in the game with {total_score} points! Every prediction is a chance to climb higher!",
-                "🎲 {total_predictions} predictions show commitment! Trust your knowledge and keep going!",
-                "🌊 Riding the waves of volleyball predictions! Your {accuracy}% accuracy has room to grow!"
+                "⚡ Solid position with {total_score} points! Your {accuracy}% accuracy has room to climb higher. Keep going!",
+                "🎲 {total_predictions} predictions show real commitment! Your volleyball knowledge can take you further up the rankings.",
+                "🌊 Steady progress with {accuracy}% accuracy! Every prediction brings you closer to the top. Keep predicting!"
             ],
             'newcomer': [
-                "🎉 Welcome to the prediction game! Every expert was once a beginner - your journey starts now!",
-                "🌱 Fresh start, fresh possibilities! Each prediction is a learning opportunity.",
-                "🚀 New player energy! Jump in and start building your prediction legacy!"
+                "🎉 Welcome to predictions! Every expert started somewhere. Your volleyball journey begins with each new prediction!",
+                "🌱 Fresh start, bright future! Each prediction teaches you more. Build your legacy one game at a time!",
+                "🚀 New player energy! Jump in and start climbing the leaderboard. Your prediction adventure starts now!"
             ]
         }
     
     def get_or_create_message(self, user_id):
         """Get cached message or generate new one for user"""
-        # Calculate current performance hash
+        # Calculate current performance and results hashes
         perf_hash = calculate_performance_hash(user_id)
+        results_hash = calculate_latest_results_hash(user_id)
+        
         if not perf_hash:
             return self._get_fallback_message(user_id)
         
         # Check for existing cached message
         cached_message = PlayerMessage.query.filter_by(
-            user_id=user_id,
-            performance_hash=perf_hash
+            user_id=user_id
         ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
         
-        if cached_message:
+        # Check if we need new message due to new results or performance change
+        need_new_message = (
+            not cached_message or
+            cached_message.performance_hash != perf_hash or
+            (results_hash and cached_message.latest_results_hash != results_hash) or
+            not cached_message.last_viewed_at or
+            (datetime.utcnow() - cached_message.last_viewed_at).total_seconds() > 86400  # 24 hours
+        )
+        
+        if cached_message and not need_new_message:
             return {
                 'text': cached_message.message_text,
                 'category': cached_message.message_category,
-                'cached': True
+                'cached': True,
+                'message_id': cached_message.id
             }
         
         # Check daily API limits
@@ -508,13 +577,23 @@ class AIMessageGenerator:
                 message_data = self._generate_gemini_message(user_id)
                 if message_data:
                     # Cache the message
-                    self._cache_message(user_id, message_data, perf_hash)
+                    self._cache_message(user_id, message_data, perf_hash, results_hash)
                     return message_data
             except Exception as e:
                 logging.error(f"Error generating Gemini message for user {user_id}: {str(e)}")
         
         # Fallback to template
         return self._get_fallback_message(user_id)
+    
+    def mark_message_viewed(self, user_id):
+        """Mark the current message as viewed by the user"""
+        cached_message = PlayerMessage.query.filter_by(
+            user_id=user_id
+        ).filter(PlayerMessage.expires_at > datetime.utcnow()).first()
+        
+        if cached_message:
+            cached_message.last_viewed_at = datetime.utcnow()
+            db.session.commit()
     
     def _can_make_api_call(self):
         """Check if we can make another API call today"""
@@ -551,24 +630,34 @@ class AIMessageGenerator:
         
         user = User.query.get(user_id)
         
+        # Get latest results summary
+        latest_results = get_latest_results_summary(user_id)
+        results_context = ""
+        if latest_results:
+            correct_count = sum(1 for r in latest_results if r['correct'])
+            total_results = len(latest_results)
+            points_earned = sum(r['points'] for r in latest_results)
+            results_context = f"\nLatest {total_results} games: {correct_count} correct predictions, {points_earned} points earned"
+        
         # Create prompt for Gemini
-        prompt = f"""Generate a short, inspirational message (max 150 characters) for a volleyball prediction game player.
+        prompt = f"""Generate a very short, inspirational message (20-30 words max) for a volleyball prediction game player.
 
 Player: {user.name}
 Category: {analysis['category']}
 Rank: #{analysis['rank']} out of {analysis['total_players']}
 Total Score: {analysis['total_score']} points
 Accuracy: {analysis['accuracy']}% ({analysis['correct_predictions']}/{analysis['total_predictions']})
-Recent Form: {analysis['recent_accuracy']}% in last {analysis['recent_total']} games
+Recent Form: {analysis['recent_accuracy']}% in last {analysis['recent_total']} games{results_context}
 
-The message should be:
-- Encouraging and positive
-- Specific to their performance
-- Include relevant emojis
-- Max 150 characters
-- Mention key stats when relevant
+Requirements:
+- EXACTLY 20-30 words
+- Encouraging and positive tone
+- Include 1-2 relevant emojis
+- Reference latest results if available
+- Focus on recent performance or achievements
+- Keep it conversational and personal
 
-Categories explained:
+Categories:
 - champion: #1 player
 - top_performer: Top 3
 - accuracy_master: High accuracy (70%+)
@@ -578,7 +667,7 @@ Categories explained:
 - average: Middle of the pack
 - newcomer: New player (under 5 predictions)
 
-Return only the message text, no explanation."""
+Return only the message text, no explanation or quotes."""
 
         try:
             # Configure Gemini API
@@ -590,7 +679,12 @@ Return only the message text, no explanation."""
             # Generate content
             response = model.generate_content(prompt)
             
-            message_text = response.text.strip()
+            message_text = response.text.strip().replace('"', '').replace("'", '')
+            
+            # Ensure message is within word limit
+            words = message_text.split()
+            if len(words) > 30:
+                message_text = ' '.join(words[:30]) + '...'
             
             # Increment API usage
             self._increment_api_usage()
@@ -636,7 +730,7 @@ Return only the message text, no explanation."""
             'cached': False
         }
     
-    def _cache_message(self, user_id, message_data, perf_hash):
+    def _cache_message(self, user_id, message_data, perf_hash, results_hash=None):
         """Cache generated message in database"""
         expires_at = datetime.utcnow() + timedelta(hours=self.cache_duration_hours)
         
@@ -649,6 +743,7 @@ Return only the message text, no explanation."""
             message_text=message_data['text'],
             message_category=message_data['category'],
             performance_hash=perf_hash,
+            latest_results_hash=results_hash,
             expires_at=expires_at,
             api_calls_used=1 if not message_data.get('cached', False) else 0
         )
@@ -1012,6 +1107,8 @@ def leaderboard():
         ai_generator = AIMessageGenerator()
         try:
             current_user_message = ai_generator.get_or_create_message(current_user.id)
+            # Mark message as viewed when user visits leaderboard
+            ai_generator.mark_message_viewed(current_user.id)
         except Exception as e:
             logging.error(f"Error getting AI message for current user {current_user.id}: {str(e)}")
             current_user_message = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
