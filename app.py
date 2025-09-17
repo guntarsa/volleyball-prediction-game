@@ -1289,19 +1289,7 @@ def predictions():
 def leaderboard():
     users = User.query.all()
     user_stats = []
-    
-    # Get AI-generated message only for current user
-    current_user_message = None
-    if current_user.is_authenticated:
-        ai_generator = AIMessageGenerator()
-        try:
-            current_user_message = ai_generator.get_or_create_message(current_user.id)
-            # Mark message as viewed when user visits leaderboard
-            ai_generator.mark_message_viewed(current_user.id)
-        except Exception as e:
-            logging.error(f"Error getting AI message for current user {current_user.id}: {str(e)}")
-            current_user_message = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
-    
+
     for user in users:
         stats = {
             'id': user.id,
@@ -1313,9 +1301,24 @@ def leaderboard():
             'accuracy': user.get_accuracy_percentage()
         }
         user_stats.append(stats)
-    
+
     user_stats.sort(key=lambda x: x['total_score'], reverse=True)
-    return render_template('leaderboard.html', users=user_stats, current_user_message=current_user_message)
+    return render_template('leaderboard.html', users=user_stats)
+
+@app.route('/api/user_message')
+@login_required
+def get_user_message():
+    """API endpoint to get AI-generated message for current user asynchronously"""
+    try:
+        ai_generator = AIMessageGenerator()
+        current_user_message = ai_generator.get_or_create_message(current_user.id)
+        # Mark message as viewed when user requests it
+        ai_generator.mark_message_viewed(current_user.id)
+        return jsonify({'success': True, 'message': current_user_message})
+    except Exception as e:
+        logging.error(f"Error getting AI message for current user {current_user.id}: {str(e)}")
+        fallback_message = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
+        return jsonify({'success': True, 'message': fallback_message})
 
 # Removed add_user route - users now register themselves
 
