@@ -3,8 +3,6 @@
 {% block title %}Race Chart - Men's World Championship 2025{% endblock %}
 
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
     .chart-container {
         position: relative;
@@ -292,13 +290,28 @@
     </div>
 </div>
 
+<!-- Load Chart.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
 <script>
 let chart = null;
 let chartData = null;
 
+// Function to check if Chart.js is loaded and initialize
+function initializeWhenReady() {
+    if (typeof Chart === 'undefined') {
+        console.log('Waiting for Chart.js to load...');
+        setTimeout(initializeWhenReady, 100);
+        return;
+    }
+
+    console.log('Chart.js loaded successfully, version:', Chart.version);
+    updateChart();
+}
+
 // Initialize chart on page load
 document.addEventListener('DOMContentLoaded', function() {
-    updateChart();
+    initializeWhenReady();
 });
 
 async function updateChart() {
@@ -426,16 +439,6 @@ function renderChart(data) {
             interaction: {
                 intersect: false,
                 mode: 'index'
-            },
-            // Mobile optimizations
-            elements: {
-                point: {
-                    radius: window.innerWidth < 768 ? 3 : 4,
-                    hoverRadius: window.innerWidth < 768 ? 5 : 6
-                },
-                line: {
-                    borderWidth: window.innerWidth < 768 ? 2 : 3
-                }
             },
             plugins: {
                 title: {
