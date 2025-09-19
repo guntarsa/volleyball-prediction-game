@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}Race Chart - Men's World Championship 2025{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+    .chart-container {
+        position: relative;
+        height: 500px;
+        margin: 20px 0;
+    }
+
+    .filters-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .filter-group {
+        margin-bottom: 15px;
+    }
+
+    .filter-group label {
+        font-weight: 600;
+        color: #667eea;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    .player-checkboxes {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 10px;
+        max-height: 150px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 10px;
+        background: #f8f9fa;
+    }
+
+    .player-checkbox {
+        display: flex;
+        align-items: center;
+        padding: 5px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+    }
+
+    .player-checkbox:hover {
+        background-color: rgba(102, 126, 234, 0.1);
+    }
+
+    .player-checkbox input[type="checkbox"] {
+        margin-right: 8px;
+        transform: scale(1.1);
+    }
+
+    .chart-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 20px 0;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .export-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-export {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-export:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #667eea;
+    }
+
+    .error {
+        text-align: center;
+        padding: 40px;
+        color: #e74c3c;
+        background: rgba(231, 76, 60, 0.1);
+        border-radius: 8px;
+        margin: 20px 0;
+    }
+
+    @media (max-width: 768px) {
+        .chart-container {
+            height: 400px;
+        }
+
+        .player-checkboxes {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            max-height: 120px;
+        }
+
+        .chart-controls {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .export-buttons {
+            justify-content: center;
+        }
+
+        .filters-section {
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .filter-group label {
+            font-size: 14px;
+        }
+
+        .btn-export {
+            padding: 12px 20px;
+            font-size: 16px;
+            min-height: 44px; /* Better touch target */
+        }
+
+        /* Improve form controls on mobile */
+        .form-control {
+            font-size: 16px !important; /* Prevent zoom on iOS */
+            min-height: 44px;
+        }
+
+        /* Better spacing for mobile */
+        .filter-group {
+            margin-bottom: 20px;
+        }
+
+        /* Mobile-friendly buttons */
+        .btn {
+            min-height: 44px;
+            font-size: 16px;
+        }
+    }
+
+    /* Additional mobile optimizations */
+    @media (max-width: 480px) {
+        .chart-container {
+            height: 350px;
+            margin: 15px 0;
+        }
+
+        .player-checkboxes {
+            grid-template-columns: 1fr 1fr;
+            max-height: 100px;
+        }
+
+        .export-buttons {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-export {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-4">
+                <h1 class="text-white">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Cumulative Points Race Chart
+                </h1>
+                <p class="text-white-50">
+                    Track how each player's points accumulate throughout the tournament
+                </p>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <h4 class="mb-3">
+                    <i class="fas fa-filter me-2"></i>
+                    Filters
+                </h4>
+
+                <form id="filter-form">
+                    <!-- Player Selection -->
+                    <div class="filter-group">
+                        <label>Select Players:</label>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
+                                Select All
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
+                                Select None
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
+                                Top 5 Only
+                            </button>
+                        </div>
+                        <div class="player-checkboxes" id="player-checkboxes">
+                            {% for user in users %}
+                            <div class="player-checkbox">
+                                <input type="checkbox" id="player_{{ user.id }}" name="users[]" value="{{ user.id }}" checked>
+                                <label for="player_{{ user.id }}">{{ user.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Date Range -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="filter-group">
+                                <label for="start-date">Start Date:</label>
+                                <input type="date" id="start-date" name="start_date" class="form-control">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="filter-group">
+                                <label for="end-date">End Date:</label>
+                                <input type="date" id="end-date" name="end_date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button type="button" class="btn btn-primary" onclick="updateChart()">
+                            <i class="fas fa-sync-alt me-2"></i>
+                            Update Chart
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="resetFilters()">
+                            <i class="fas fa-undo me-2"></i>
+                            Reset Filters
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Chart Controls -->
+            <div class="chart-controls">
+                <div class="chart-info">
+                    <small class="text-white-50">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Showing cumulative points progression through finished games
+                    </small>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportChartData()">
+                        <i class="fas fa-download me-2"></i>
+                        Export Data (CSV)
+                    </button>
+                    <button class="btn-export" onclick="exportChartImage()">
+                        <i class="fas fa-image me-2"></i>
+                        Export Chart (PNG)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart Container -->
+            <div class="chart-container">
+                <div id="loading" class="loading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Loading chart data...</p>
+                </div>
+                <div id="error" class="error" style="display: none;">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <p>Failed to load chart data. Please try again.</p>
+                </div>
+                <canvas id="race-chart" style="display: none;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let chart = null;
+let chartData = null;
+
+// Initialize chart on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateChart();
+});
+
+async function updateChart() {
+    const loadingDiv = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+    const chartCanvas = document.getElementById('race-chart');
+
+    // Show loading state
+    loadingDiv.style.display = 'block';
+    errorDiv.style.display = 'none';
+    chartCanvas.style.display = 'none';
+
+    try {
+        // Get filter parameters
+        const formData = new FormData(document.getElementById('filter-form'));
+        const params = new URLSearchParams();
+
+        // Add selected users
+        const selectedUsers = formData.getAll('users[]');
+        selectedUsers.forEach(userId => params.append('users[]', userId));
+
+        // Add date range
+        if (formData.get('start_date')) {
+            params.append('start_date', formData.get('start_date'));
+        }
+        if (formData.get('end_date')) {
+            params.append('end_date', formData.get('end_date'));
+        }
+
+        const response = await fetch(`/api/race-chart-data?${params.toString()}`);
+        const result = await response.json();
+
+        if (result.success) {
+            chartData = result.data;
+            renderChart(chartData);
+
+            // Hide loading, show chart
+            loadingDiv.style.display = 'none';
+            chartCanvas.style.display = 'block';
+        } else {
+            throw new Error(result.error || 'Failed to load data');
+        }
+    } catch (error) {
+        console.error('Error loading chart data:', error);
+        loadingDiv.style.display = 'none';
+        errorDiv.style.display = 'block';
+    }
+}
+
+function renderChart(data) {
+    const ctx = document.getElementById('race-chart').getContext('2d');
+
+    // Destroy existing chart
+    if (chart) {
+        chart.destroy();
+    }
+
+    // Prepare datasets with mobile-responsive settings
+    const isMobile = window.innerWidth < 768;
+    const datasets = data.players.map(player => ({
+        label: player.name,
+        data: player.data,
+        borderColor: player.color,
+        backgroundColor: player.color + '20',
+        borderWidth: isMobile ? 2 : 3,
+        fill: false,
+        tension: 0.1,
+        pointRadius: isMobile ? 3 : 4,
+        pointHoverRadius: isMobile ? 5 : 6,
+        pointBackgroundColor: player.color,
+        pointBorderColor: '#fff',
+        pointBorderWidth: isMobile ? 1 : 2
+    }));
+
+    // Create chart
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.games.map((game, index) => `Game ${index + 1}`),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            // Mobile optimizations
+            elements: {
+                point: {
+                    radius: window.innerWidth < 768 ? 3 : 4,
+                    hoverRadius: window.innerWidth < 768 ? 5 : 6
+                },
+                line: {
+                    borderWidth: window.innerWidth < 768 ? 2 : 3
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cumulative Points Race',
+                    font: {
+                        size: 18,
+                        weight: 'bold'
+                    },
+                    color: '#333'
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const gameIndex = context[0].dataIndex;
+                            const game = data.games[gameIndex];
+                            return `${game.label}\n${game.date}\n${game.round}`;
+                        },
+                        label: function(context) {
+                            const player = data.players.find(p => p.name === context.dataset.label);
+                            const points = context.parsed.y;
+                            let tooltip = `${context.dataset.label}: ${points} points`;
+
+                            if (player && player.tournament_points > 0) {
+                                tooltip += ` (includes ${player.tournament_points} tournament points)`;
+                            }
+
+                            return tooltip;
+                        },
+                        afterLabel: function(context) {
+                            const player = data.players.find(p => p.name === context.dataset.label);
+                            if (player) {
+                                return `Current position: #${player.final_position}`;
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Games (Chronological Order)',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Cumulative Points',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    },
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
+}
+
+// Player selection functions
+function selectAllPlayers() {
+    const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+}
+
+function selectNonePlayers() {
+    const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+}
+
+function selectTopPlayers() {
+    selectNonePlayers();
+
+    // If we have chart data, use it to select top players
+    if (chartData && chartData.players) {
+        const sortedPlayers = chartData.players
+            .slice()
+            .sort((a, b) => b.total_score - a.total_score)
+            .slice(0, 5);
+
+        sortedPlayers.forEach(player => {
+            const checkbox = document.getElementById(`player_${player.id}`);
+            if (checkbox) checkbox.checked = true;
+        });
+    } else {
+        // Fallback: select first 5 checkboxes
+        const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]');
+        for (let i = 0; i < Math.min(5, checkboxes.length); i++) {
+            checkboxes[i].checked = true;
+        }
+    }
+}
+
+function resetFilters() {
+    document.getElementById('start-date').value = '';
+    document.getElementById('end-date').value = '';
+    selectAllPlayers();
+    updateChart();
+}
+
+// Export functions
+async function exportChartData() {
+    if (!chartData) {
+        alert('No chart data available to export');
+        return;
+    }
+
+    // Create detailed CSV content
+    let csvContent = 'Player,Final Position,Total Score,Tournament Points,';
+    csvContent += chartData.games.map((game, i) => `Game ${i + 1} (${game.label})`).join(',');
+    csvContent += '\n';
+
+    chartData.players.forEach(player => {
+        csvContent += `${player.name},${player.final_position},${player.total_score},${player.tournament_points},${player.data.join(',')}\n`;
+    });
+
+    // Add summary section
+    csvContent += '\n\nGAME DETAILS\n';
+    csvContent += 'Game Number,Teams,Date,Round\n';
+    chartData.games.forEach((game, i) => {
+        csvContent += `${i + 1},"${game.label}",${game.date},${game.round}\n`;
+    });
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `volleyball_race_chart_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+function exportChartImage() {
+    if (!chart) {
+        alert('No chart available to export');
+        return;
+    }
+
+    // Get chart as image
+    const url = chart.toBase64Image();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'volleyball_race_chart.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+</script>
+{% endblock %}

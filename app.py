@@ -1305,6 +1305,113 @@ def leaderboard():
     user_stats.sort(key=lambda x: x['total_score'], reverse=True)
     return render_template('leaderboard.html', users=user_stats)
 
+@app.route('/race-chart')
+@login_required
+def race_chart():
+    """Display cumulative points race chart"""
+    users = User.query.all()
+    games = Game.query.filter_by(is_finished=True).order_by(Game.game_date).all()
+
+    return render_template('race_chart.html', users=users, games=games)
+
+@app.route('/api/race-chart-data')
+@login_required
+def get_race_chart_data():
+    """API endpoint to get cumulative points data for race chart"""
+    try:
+        # Get query parameters for filtering
+        selected_user_ids = request.args.getlist('users[]')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # Get all finished games ordered by date
+        games_query = Game.query.filter_by(is_finished=True).order_by(Game.game_date)
+
+        # Apply date filtering if provided
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                games_query = games_query.filter(Game.game_date >= start_dt)
+            except ValueError:
+                pass
+
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+                games_query = games_query.filter(Game.game_date < end_dt)
+            except ValueError:
+                pass
+
+        games = games_query.all()
+
+        # Get users to include in chart
+        if selected_user_ids:
+            try:
+                user_ids = [int(uid) for uid in selected_user_ids]
+                users = User.query.filter(User.id.in_(user_ids)).all()
+            except ValueError:
+                users = User.query.all()
+        else:
+            users = User.query.all()
+
+        # Build cumulative data
+        chart_data = {
+            'games': [],
+            'players': []
+        }
+
+        # Game labels and dates
+        for game in games:
+            game_label = f"{game.team1} vs {game.team2}"
+            chart_data['games'].append({
+                'id': game.id,
+                'label': game_label,
+                'date': game.game_date.strftime('%Y-%m-%d %H:%M'),
+                'round': game.round_name
+            })
+
+        # Player data with cumulative points
+        colors = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#C9CBCF', '#E74C3C', '#2ECC71', '#F39C12',
+            '#9B59B6', '#1ABC9C', '#34495E', '#E67E22', '#95A5A6'
+        ]
+
+        # Sort users by total score for better color assignment
+        users_sorted = sorted(users, key=lambda u: u.get_total_score(), reverse=True)
+
+        for i, user in enumerate(users_sorted):
+            cumulative_points = 0
+            tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
+
+            player_data = {
+                'name': user.name,
+                'id': user.id,
+                'color': colors[i % len(colors)],
+                'data': [],
+                'tournament_points': tournament_points,
+                'total_score': user.get_total_score(),
+                'final_position': i + 1
+            }
+
+            # Calculate cumulative points for each game
+            for game in games:
+                # Find user's prediction for this game
+                prediction = next((p for p in user.predictions if p.game_id == game.id), None)
+
+                if prediction and prediction.points is not None:
+                    cumulative_points += prediction.points
+
+                player_data['data'].append(cumulative_points)
+
+            chart_data['players'].append(player_data)
+
+        return jsonify({'success': True, 'data': chart_data})
+
+    except Exception as e:
+        logging.error(f"Error getting race chart data: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to load chart data'})
+
 @app.route('/api/user_message')
 @login_required
 def get_user_message():
