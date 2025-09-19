@@ -17,7 +17,7 @@
     #race-chart {
         width: 100% !important;
         height: 100% !important;
-        max-height: 460px; /* Account for container padding */
+        max-height: 460px;
     }
 
     .filters-section {
@@ -116,6 +116,8 @@
     @media (max-width: 768px) {
         .chart-container {
             height: 400px;
+            padding: 15px;
+            margin: 15px 0;
         }
 
         .player-checkboxes {
@@ -144,28 +146,24 @@
         .btn-export {
             padding: 12px 20px;
             font-size: 16px;
-            min-height: 44px; /* Better touch target */
-        }
-
-        /* Improve form controls on mobile */
-        .form-control {
-            font-size: 16px !important; /* Prevent zoom on iOS */
             min-height: 44px;
         }
 
-        /* Better spacing for mobile */
+        .form-control {
+            font-size: 16px !important;
+            min-height: 44px;
+        }
+
         .filter-group {
             margin-bottom: 20px;
         }
 
-        /* Mobile-friendly buttons */
         .btn {
             min-height: 44px;
             font-size: 16px;
         }
     }
 
-    /* Additional mobile optimizations */
     @media (max-width: 480px) {
         .chart-container {
             height: 350px;
@@ -402,25 +400,6 @@ async function updateChart() {
             loadingDiv.style.display = 'none';
             chartCanvas.style.display = 'block';
 
-            // Force canvas to be visible and check dimensions
-            setTimeout(() => {
-                console.log('Chart canvas dimensions:', {
-                    width: chartCanvas.width,
-                    height: chartCanvas.height,
-                    clientWidth: chartCanvas.clientWidth,
-                    clientHeight: chartCanvas.clientHeight,
-                    offsetWidth: chartCanvas.offsetWidth,
-                    offsetHeight: chartCanvas.offsetHeight,
-                    style: chartCanvas.style.display
-                });
-
-                // Force chart resize
-                if (chart) {
-                    chart.resize();
-                    console.log('Chart resized');
-                }
-            }, 500);
-
             console.log('Chart canvas should now be visible');
         } else {
             throw new Error(result.error || 'Failed to load data');
@@ -480,107 +459,99 @@ function renderChart(data) {
                 labels: data.games.map((game, index) => `Game ${index + 1}`),
                 datasets: datasets
             },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Cumulative Points Race',
-                    font: {
-                        size: 18,
-                        weight: 'bold'
-                    },
-                    color: '#333'
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 },
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        pointStyle: 'circle',
-                        font: {
-                            size: 12
-                        }
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        title: function(context) {
-                            const gameIndex = context[0].dataIndex;
-                            const game = data.games[gameIndex];
-                            return `${game.label}\n${game.date}\n${game.round}`;
-                        },
-                        label: function(context) {
-                            const player = data.players.find(p => p.name === context.dataset.label);
-                            const points = context.parsed.y;
-                            let tooltip = `${context.dataset.label}: ${points} points`;
-
-                            if (player && player.tournament_points > 0) {
-                                tooltip += ` (includes ${player.tournament_points} tournament points)`;
-                            }
-
-                            return tooltip;
-                        },
-                        afterLabel: function(context) {
-                            const player = data.players.find(p => p.name === context.dataset.label);
-                            if (player) {
-                                return `Current position: #${player.final_position}`;
-                            }
-                            return '';
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
+                plugins: {
                     title: {
                         display: true,
-                        text: 'Games (Chronological Order)',
+                        text: 'Cumulative Points Race',
                         font: {
-                            size: 14,
+                            size: 18,
                             weight: 'bold'
+                        },
+                        color: '#333'
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: {
+                                size: 12
+                            }
                         }
                     },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
+                    tooltip: {
+                        callbacks: {
+                            title: function(context) {
+                                const gameIndex = context[0].dataIndex;
+                                const game = data.games[gameIndex];
+                                return `${game.label}\n${game.date}\n${game.round}`;
+                            },
+                            label: function(context) {
+                                const player = data.players.find(p => p.name === context.dataset.label);
+                                const points = context.parsed.y;
+                                let tooltip = `${context.dataset.label}: ${points} points`;
+
+                                if (player && player.tournament_points > 0) {
+                                    tooltip += ` (includes ${player.tournament_points} tournament points)`;
+                                }
+
+                                return tooltip;
+                            },
+                            afterLabel: function(context) {
+                                const player = data.players.find(p => p.name === context.dataset.label);
+                                if (player) {
+                                    return `Current position: #${player.final_position}`;
+                                }
+                                return '';
+                            }
+                        }
                     }
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Cumulative Points',
-                        font: {
-                            size: 14,
-                            weight: 'bold'
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Games (Chronological Order)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
                         }
                     },
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Cumulative Points',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
                     }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeInOutQuart'
                 }
-            },
-            animation: {
-                duration: 1000,
-                easing: 'easeInOutQuart'
             }
         });
 
         console.log('Chart created successfully:', chart);
-
-        // Force chart to render and update
-        setTimeout(() => {
-            if (chart) {
-                chart.update('none'); // Update without animation
-                chart.resize();
-                console.log('Chart updated and resized');
-            }
-        }, 100);
 
     } catch (error) {
         console.error('Error creating chart:', error);
