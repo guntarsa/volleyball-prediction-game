@@ -8,6 +8,16 @@
         position: relative;
         height: 500px;
         margin: 20px 0;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    #race-chart {
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 460px; /* Account for container padding */
     }
 
     .filters-section {
@@ -291,7 +301,7 @@
 </div>
 
 <!-- Load Chart.js from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 
 <script>
 let chart = null;
@@ -391,6 +401,27 @@ async function updateChart() {
             // Hide loading, show chart
             loadingDiv.style.display = 'none';
             chartCanvas.style.display = 'block';
+
+            // Force canvas to be visible and check dimensions
+            setTimeout(() => {
+                console.log('Chart canvas dimensions:', {
+                    width: chartCanvas.width,
+                    height: chartCanvas.height,
+                    clientWidth: chartCanvas.clientWidth,
+                    clientHeight: chartCanvas.clientHeight,
+                    offsetWidth: chartCanvas.offsetWidth,
+                    offsetHeight: chartCanvas.offsetHeight,
+                    style: chartCanvas.style.display
+                });
+
+                // Force chart resize
+                if (chart) {
+                    chart.resize();
+                    console.log('Chart resized');
+                }
+            }, 500);
+
+            console.log('Chart canvas should now be visible');
         } else {
             throw new Error(result.error || 'Failed to load data');
         }
@@ -402,10 +433,22 @@ async function updateChart() {
 }
 
 function renderChart(data) {
-    const ctx = document.getElementById('race-chart').getContext('2d');
+    console.log('renderChart called with data:', data);
+
+    const chartCanvas = document.getElementById('race-chart');
+    console.log('Chart canvas element:', chartCanvas);
+
+    if (!chartCanvas) {
+        console.error('Chart canvas element not found!');
+        return;
+    }
+
+    const ctx = chartCanvas.getContext('2d');
+    console.log('Chart context:', ctx);
 
     // Destroy existing chart
     if (chart) {
+        console.log('Destroying existing chart');
         chart.destroy();
     }
 
@@ -426,13 +469,17 @@ function renderChart(data) {
         pointBorderWidth: isMobile ? 1 : 2
     }));
 
+    console.log('Creating chart with datasets:', datasets);
+    console.log('Game labels:', data.games.map((game, index) => `Game ${index + 1}`));
+
     // Create chart
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.games.map((game, index) => `Game ${index + 1}`),
-            datasets: datasets
-        },
+    try {
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.games.map((game, index) => `Game ${index + 1}`),
+                datasets: datasets
+            },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -522,8 +569,23 @@ function renderChart(data) {
                 duration: 1000,
                 easing: 'easeInOutQuart'
             }
-        }
-    });
+        });
+
+        console.log('Chart created successfully:', chart);
+
+        // Force chart to render and update
+        setTimeout(() => {
+            if (chart) {
+                chart.update('none'); // Update without animation
+                chart.resize();
+                console.log('Chart updated and resized');
+            }
+        }, 100);
+
+    } catch (error) {
+        console.error('Error creating chart:', error);
+        throw error;
+    }
 }
 
 // Player selection functions
