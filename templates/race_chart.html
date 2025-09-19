@@ -365,6 +365,7 @@
 <script>
 let chart = null;
 let chartData = null;
+let tooltipTimeout = null;
 
 // Function to check if Chart.js is loaded and initialize
 function initializeWhenReady() {
@@ -532,6 +533,30 @@ function renderChart(data) {
                     intersect: false,
                     mode: 'index'
                 },
+                onHover: function(event, activeElements) {
+                    // Clear any existing timeout
+                    if (tooltipTimeout) {
+                        clearTimeout(tooltipTimeout);
+                    }
+
+                    // If hovering over elements, show tooltip and set auto-hide
+                    if (activeElements.length > 0) {
+                        this.tooltip.setActiveElements(activeElements, {x: event.x, y: event.y});
+                        this.update('none');
+
+                        // Auto-hide tooltip after 1 second
+                        tooltipTimeout = setTimeout(() => {
+                            if (chart) {
+                                chart.tooltip.setActiveElements([], {x: 0, y: 0});
+                                chart.update('none');
+                            }
+                        }, 1000);
+                    } else {
+                        // If not hovering, hide immediately
+                        this.tooltip.setActiveElements([], {x: 0, y: 0});
+                        this.update('none');
+                    }
+                },
                 plugins: {
                     title: {
                         display: true,
@@ -550,10 +575,22 @@ function renderChart(data) {
                             pointStyle: 'circle',
                             font: {
                                 size: 12
-                            }
+                            },
+                            color: '#ffffff' // White text for legend
                         }
                     },
                     tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false,
+                        position: 'nearest',
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        borderWidth: 1,
+                        cornerRadius: 6,
+                        displayColors: true,
                         callbacks: {
                             title: function(context) {
                                 const gameIndex = context[0].dataIndex;
@@ -639,6 +676,36 @@ function renderChart(data) {
                 console.log('Chart resized, new dimensions:', chart.width, 'x', chart.height);
                 console.log('Chart area:', chart.chartArea);
             }
+
+            // Add touch event handling for mobile
+            canvas.addEventListener('touchstart', function(e) {
+                // Clear any existing timeout
+                if (tooltipTimeout) {
+                    clearTimeout(tooltipTimeout);
+                }
+
+                // Hide tooltip after touch
+                setTimeout(() => {
+                    if (chart) {
+                        chart.tooltip.setActiveElements([], {x: 0, y: 0});
+                        chart.update('none');
+                    }
+                }, 100);
+            });
+
+            // Also hide tooltip when clicking elsewhere
+            canvas.addEventListener('click', function(e) {
+                if (tooltipTimeout) {
+                    clearTimeout(tooltipTimeout);
+                }
+
+                setTimeout(() => {
+                    if (chart) {
+                        chart.tooltip.setActiveElements([], {x: 0, y: 0});
+                        chart.update('none');
+                    }
+                }, 500);
+            });
         }, 200);
 
     } catch (error) {
