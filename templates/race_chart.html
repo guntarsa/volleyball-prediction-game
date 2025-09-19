@@ -318,6 +318,7 @@ async function updateChart() {
 
         // Add selected users
         const selectedUsers = formData.getAll('users[]');
+        console.log('Selected users:', selectedUsers);
         selectedUsers.forEach(userId => params.append('users[]', userId));
 
         // Add date range
@@ -328,11 +329,50 @@ async function updateChart() {
             params.append('end_date', formData.get('end_date'));
         }
 
-        const response = await fetch(`/api/race-chart-data?${params.toString()}`);
+        const url = `/api/race-chart-data?${params.toString()}`;
+        console.log('Fetching URL:', url);
+
+        const response = await fetch(url);
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
         const result = await response.json();
+        console.log('API response:', result);
 
         if (result.success) {
             chartData = result.data;
+
+            // Check if there's any data to display
+            if (!chartData.games || chartData.games.length === 0) {
+                // Show a helpful message instead of error
+                errorDiv.style.background = 'rgba(102, 126, 234, 0.1)';
+                errorDiv.style.color = '#667eea';
+                errorDiv.innerHTML = `
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h5>No Finished Games Yet</h5>
+                    <p>The race chart will show player progress once games are completed.</p>
+                    <div class="mt-3">
+                        <strong>For Admins:</strong>
+                        <ol class="text-start mt-2">
+                            <li>Add games through the Admin panel</li>
+                            <li>Enter game results when matches finish</li>
+                            <li>Mark games as "finished"</li>
+                        </ol>
+                    </div>
+                    <p class="mt-3">
+                        <a href="/admin" class="btn btn-primary btn-sm">
+                            <i class="fas fa-cog me-2"></i>Go to Admin Panel
+                        </a>
+                    </p>
+                `;
+                loadingDiv.style.display = 'none';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
             renderChart(chartData);
 
             // Hide loading, show chart

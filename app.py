@@ -1312,6 +1312,8 @@ def race_chart():
     users = User.query.all()
     games = Game.query.filter_by(is_finished=True).order_by(Game.game_date).all()
 
+    logging.info(f"Race chart page: {len(users)} users, {len(games)} finished games")
+
     return render_template('race_chart.html', users=users, games=games)
 
 @app.route('/api/race-chart-data')
@@ -1319,13 +1321,16 @@ def race_chart():
 def get_race_chart_data():
     """API endpoint to get cumulative points data for race chart"""
     try:
+        logging.info("Race chart data request received")
         # Get query parameters for filtering
         selected_user_ids = request.args.getlist('users[]')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        logging.info(f"Filters - Users: {selected_user_ids}, Start: {start_date}, End: {end_date}")
 
         # Get all finished games ordered by date
         games_query = Game.query.filter_by(is_finished=True).order_by(Game.game_date)
+        logging.info("Initial games query created")
 
         # Apply date filtering if provided
         if start_date:
@@ -1343,16 +1348,31 @@ def get_race_chart_data():
                 pass
 
         games = games_query.all()
+        logging.info(f"Found {len(games)} finished games")
+
+        # If no finished games, return empty data structure
+        if not games:
+            logging.warning("No finished games found, returning empty chart data")
+            return jsonify({
+                'success': True,
+                'data': {
+                    'games': [],
+                    'players': []
+                }
+            })
 
         # Get users to include in chart
         if selected_user_ids:
             try:
                 user_ids = [int(uid) for uid in selected_user_ids]
                 users = User.query.filter(User.id.in_(user_ids)).all()
-            except ValueError:
+                logging.info(f"Selected {len(users)} specific users")
+            except ValueError as e:
+                logging.error(f"Error parsing user IDs: {e}")
                 users = User.query.all()
         else:
             users = User.query.all()
+            logging.info(f"Using all {len(users)} users")
 
         # Build cumulative data
         chart_data = {
@@ -1361,14 +1381,19 @@ def get_race_chart_data():
         }
 
         # Game labels and dates
-        for game in games:
-            game_label = f"{game.team1} vs {game.team2}"
-            chart_data['games'].append({
-                'id': game.id,
-                'label': game_label,
-                'date': game.game_date.strftime('%Y-%m-%d %H:%M'),
-                'round': game.round_name
-            })
+        for i, game in enumerate(games):
+            try:
+                game_label = f"{game.team1} vs {game.team2}"
+                chart_data['games'].append({
+                    'id': game.id,
+                    'label': game_label,
+                    'date': game.game_date.strftime('%Y-%m-%d %H:%M'),
+                    'round': game.round_name
+                })
+            except Exception as e:
+                logging.error(f"Error processing game {i}: {e}")
+
+        logging.info(f"Processed {len(chart_data['games'])} games for chart")
 
         # Player data with cumulative points
         colors = [
@@ -1378,33 +1403,44 @@ def get_race_chart_data():
         ]
 
         # Sort users by total score for better color assignment
-        users_sorted = sorted(users, key=lambda u: u.get_total_score(), reverse=True)
+        try:
+            users_sorted = sorted(users, key=lambda u: u.get_total_score(), reverse=True)
+            logging.info(f"Sorted {len(users_sorted)} users by score")
+        except Exception as e:
+            logging.error(f"Error sorting users: {e}")
+            users_sorted = users
 
         for i, user in enumerate(users_sorted):
-            cumulative_points = 0
-            tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
+            try:
+                cumulative_points = 0
+                tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
 
-            player_data = {
-                'name': user.name,
-                'id': user.id,
-                'color': colors[i % len(colors)],
-                'data': [],
-                'tournament_points': tournament_points,
-                'total_score': user.get_total_score(),
-                'final_position': i + 1
-            }
+                player_data = {
+                    'name': user.name,
+                    'id': user.id,
+                    'color': colors[i % len(colors)],
+                    'data': [],
+                    'tournament_points': tournament_points,
+                    'total_score': user.get_total_score(),
+                    'final_position': i + 1
+                }
 
-            # Calculate cumulative points for each game
-            for game in games:
-                # Find user's prediction for this game
-                prediction = next((p for p in user.predictions if p.game_id == game.id), None)
+                # Calculate cumulative points for each game
+                for game in games:
+                    # Find user's prediction for this game
+                    prediction = next((p for p in user.predictions if p.game_id == game.id), None)
 
-                if prediction and prediction.points is not None:
-                    cumulative_points += prediction.points
+                    if prediction and prediction.points is not None:
+                        cumulative_points += prediction.points
 
-                player_data['data'].append(cumulative_points)
+                    player_data['data'].append(cumulative_points)
 
-            chart_data['players'].append(player_data)
+                chart_data['players'].append(player_data)
+
+            except Exception as e:
+                logging.error(f"Error processing user {user.name}: {e}")
+
+        logging.info(f"Successfully processed {len(chart_data['players'])} players")
 
         return jsonify({'success': True, 'data': chart_data})
 
