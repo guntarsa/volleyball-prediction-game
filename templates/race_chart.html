@@ -16,8 +16,8 @@
 
     #race-chart {
         width: 100% !important;
-        height: 100% !important;
-        max-height: 460px;
+        height: 460px !important;
+        display: block !important;
     }
 
     .filters-section {
@@ -394,13 +394,15 @@ async function updateChart() {
                 return;
             }
 
-            renderChart(chartData);
-
-            // Hide loading, show chart
+            // Hide loading, show chart FIRST
             loadingDiv.style.display = 'none';
             chartCanvas.style.display = 'block';
 
-            console.log('Chart canvas should now be visible');
+            // Small delay to ensure canvas is rendered before creating chart
+            setTimeout(() => {
+                renderChart(chartData);
+                console.log('Chart canvas should now be visible');
+            }, 100);
         } else {
             throw new Error(result.error || 'Failed to load data');
         }
@@ -462,6 +464,10 @@ function renderChart(data) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                aspectRatio: 2,
+                layout: {
+                    padding: 10
+                },
                 interaction: {
                     intersect: false,
                     mode: 'index'
@@ -552,6 +558,20 @@ function renderChart(data) {
         });
 
         console.log('Chart created successfully:', chart);
+
+        // Force canvas to have proper dimensions and trigger resize
+        setTimeout(() => {
+            const canvas = document.getElementById('race-chart');
+            canvas.style.height = '460px';
+            canvas.style.width = '100%';
+
+            if (chart) {
+                chart.resize();
+                chart.update('none'); // Update without animation
+                console.log('Chart resized, new dimensions:', chart.width, 'x', chart.height);
+                console.log('Chart area:', chart.chartArea);
+            }
+        }, 200);
 
     } catch (error) {
         console.error('Error creating chart:', error);
