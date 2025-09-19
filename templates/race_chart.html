@@ -558,10 +558,9 @@ function renderChart(data) {
                             title: function(context) {
                                 const gameIndex = context[0].dataIndex;
                                 const game = data.games[gameIndex];
-                                return `${game.label}\n${game.date}\n${game.round}`;
+                                return game.date;
                             },
                             label: function(context) {
-                                const position = context.parsed.y;
                                 const gameIndex = context.dataIndex;
                                 const datasetData = context.dataset;
 
@@ -577,10 +576,7 @@ function renderChart(data) {
                                     }
                                 }
 
-                                let tooltip = `${context.dataset.label}: Position #${position}`;
-                                tooltip += `\nCumulative points: ${points}`;
-
-                                return tooltip.split('\n');
+                                return `${context.dataset.label}: ${points}`;
                             }
                         }
                     }
