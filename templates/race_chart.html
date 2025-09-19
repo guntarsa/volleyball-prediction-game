@@ -41,14 +41,65 @@
 
     .player-checkboxes {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 10px;
-        max-height: 150px;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        max-height: 120px;
         overflow-y: auto;
         border: 1px solid #e0e0e0;
         border-radius: 8px;
         padding: 10px;
         background: #f8f9fa;
+        font-size: 14px;
+    }
+
+    .player-filter-compact {
+        display: none;
+        margin-bottom: 15px;
+    }
+
+    .player-filter-compact.active {
+        display: block;
+    }
+
+    .player-filter-expanded {
+        display: block;
+    }
+
+    .player-filter-expanded.hidden {
+        display: none;
+    }
+
+    .filter-toggle {
+        background: none;
+        border: none;
+        color: #667eea;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+        margin-left: 10px;
+    }
+
+    .selected-players-display {
+        background: #e9ecef;
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 14px;
+        color: #495057;
+        max-height: 80px;
+        overflow-y: auto;
+    }
+
+    .game-interval-control {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .interval-input {
+        width: 80px;
     }
 
     .player-checkbox {
@@ -209,27 +260,66 @@
                 </h4>
 
                 <form id="filter-form">
+                    <!-- Chart Display Options -->
+                    <div class="game-interval-control">
+                        <label for="game-interval" class="mb-0">Show every:</label>
+                        <select id="game-interval" class="form-control interval-input">
+                            <option value="1">Every game</option>
+                            <option value="2">Every 2nd game</option>
+                            <option value="3">Every 3rd game</option>
+                            <option value="5" selected>Every 5th game</option>
+                            <option value="10">Every 10th game</option>
+                        </select>
+                        <span class="text-muted">games on chart</span>
+                    </div>
+
                     <!-- Player Selection -->
                     <div class="filter-group">
-                        <label>Select Players:</label>
-                        <div class="mb-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
-                                Select All
+                        <label>Select Players:
+                            <button type="button" class="filter-toggle" onclick="togglePlayerFilter()" id="player-filter-toggle">
+                                Hide list
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
-                                Select None
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
-                                Top 5 Only
-                            </button>
-                        </div>
-                        <div class="player-checkboxes" id="player-checkboxes">
-                            {% for user in users %}
-                            <div class="player-checkbox">
-                                <input type="checkbox" id="player_{{ user.id }}" name="users[]" value="{{ user.id }}" checked>
-                                <label for="player_{{ user.id }}">{{ user.name }}</label>
+                        </label>
+
+                        <!-- Compact view -->
+                        <div class="player-filter-compact" id="player-filter-compact">
+                            <div class="selected-players-display" id="selected-players-display">
+                                <!-- Will be populated by JavaScript -->
                             </div>
-                            {% endfor %}
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
+                                    All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
+                                    None
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
+                                    Top 5
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Expanded view -->
+                        <div class="player-filter-expanded" id="player-filter-expanded">
+                            <div class="mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
+                                    Select All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
+                                    Select None
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
+                                    Top 5 Only
+                                </button>
+                            </div>
+                            <div class="player-checkboxes" id="player-checkboxes">
+                                {% for user in users %}
+                                <div class="player-checkbox">
+                                    <input type="checkbox" id="player_{{ user.id }}" name="users[]" value="{{ user.id }}" checked onchange="updateSelectedPlayersDisplay()">
+                                    <label for="player_{{ user.id }}">{{ user.name }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
 
@@ -320,6 +410,7 @@ function initializeWhenReady() {
 // Initialize chart on page load
 document.addEventListener('DOMContentLoaded', function() {
     initializeWhenReady();
+    updateSelectedPlayersDisplay();
 });
 
 async function updateChart() {
@@ -442,24 +533,28 @@ function renderChart(data) {
         backgroundColor: player.color + '20',
         borderWidth: isMobile ? 2 : 3,
         fill: false,
-        tension: 0.1,
-        pointRadius: isMobile ? 3 : 4,
-        pointHoverRadius: isMobile ? 5 : 6,
+        tension: 0.2,
+        pointRadius: 0, // Remove circles
+        pointHoverRadius: 6, // Show circle only on hover
         pointBackgroundColor: player.color,
         pointBorderColor: '#fff',
-        pointBorderWidth: isMobile ? 1 : 2
+        pointBorderWidth: 2
     }));
 
+    // Apply game interval filtering
+    const gameInterval = parseInt(document.getElementById('game-interval').value) || 1;
+    const filteredData = applyGameIntervalFilter(data, gameInterval);
+
     console.log('Creating chart with datasets:', datasets);
-    console.log('Game labels:', data.games.map((game, index) => `Game ${index + 1}`));
+    console.log('Game labels:', filteredData.labels);
 
     // Create chart
     try {
         chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.games.map((game, index) => `Game ${index + 1}`),
-                datasets: datasets
+                labels: filteredData.labels,
+                datasets: filteredData.datasets
             },
             options: {
                 responsive: true,
@@ -583,11 +678,13 @@ function renderChart(data) {
 function selectAllPlayers() {
     const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = true);
+    updateSelectedPlayersDisplay();
 }
 
 function selectNonePlayers() {
     const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = false);
+    updateSelectedPlayersDisplay();
 }
 
 function selectTopPlayers() {
@@ -611,6 +708,7 @@ function selectTopPlayers() {
             checkboxes[i].checked = true;
         }
     }
+    updateSelectedPlayersDisplay();
 }
 
 function resetFilters() {
@@ -618,6 +716,84 @@ function resetFilters() {
     document.getElementById('end-date').value = '';
     selectAllPlayers();
     updateChart();
+}
+
+// New filter functions
+function togglePlayerFilter() {
+    const compactView = document.getElementById('player-filter-compact');
+    const expandedView = document.getElementById('player-filter-expanded');
+    const toggle = document.getElementById('player-filter-toggle');
+
+    if (compactView.classList.contains('active')) {
+        // Switch to expanded view
+        compactView.classList.remove('active');
+        expandedView.classList.remove('hidden');
+        toggle.textContent = 'Hide list';
+    } else {
+        // Switch to compact view
+        compactView.classList.add('active');
+        expandedView.classList.add('hidden');
+        toggle.textContent = 'Show list';
+    }
+}
+
+function updateSelectedPlayersDisplay() {
+    const checkboxes = document.querySelectorAll('#player-checkboxes input[type="checkbox"]:checked');
+    const display = document.getElementById('selected-players-display');
+
+    if (checkboxes.length === 0) {
+        display.innerHTML = '<em>No players selected</em>';
+    } else if (checkboxes.length <= 8) {
+        const names = Array.from(checkboxes).map(cb => cb.nextElementSibling.textContent).join(', ');
+        display.innerHTML = names;
+    } else {
+        display.innerHTML = `${checkboxes.length} players selected`;
+    }
+}
+
+function applyGameIntervalFilter(data, interval) {
+    if (interval <= 1) {
+        // Return all data
+        return {
+            labels: data.games.map((game, index) => `Game ${index + 1}`),
+            datasets: data.players.map(player => ({
+                label: player.name,
+                data: player.data,
+                borderColor: player.color,
+                backgroundColor: player.color + '20',
+                borderWidth: window.innerWidth < 768 ? 2 : 3,
+                fill: false,
+                tension: 0.2,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointBackgroundColor: player.color,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }))
+        };
+    }
+
+    // Filter games by interval
+    const filteredGames = data.games.filter((game, index) => index % interval === 0);
+    const filteredIndices = data.games.map((game, index) => index).filter(index => index % interval === 0);
+
+    return {
+        labels: filteredGames.map((game, index) => `Game ${filteredIndices[index] + 1}`),
+        datasets: data.players.map(player => ({
+            label: player.name,
+            data: filteredIndices.map(index => player.data[index]),
+            borderColor: player.color,
+            backgroundColor: player.color + '20',
+            borderWidth: window.innerWidth < 768 ? 2 : 3,
+            fill: false,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointBackgroundColor: player.color,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+        }))
+    };
 }
 
 // Export functions
