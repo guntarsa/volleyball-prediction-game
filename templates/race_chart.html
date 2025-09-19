@@ -541,20 +541,13 @@ function renderChart(data) {
 
                     // If hovering over elements, show tooltip and set auto-hide
                     if (activeElements.length > 0) {
-                        this.tooltip.setActiveElements(activeElements, {x: event.x, y: event.y});
-                        this.update('none');
-
-                        // Auto-hide tooltip after 1 second
+                        // Auto-hide tooltip after 1 second of no mouse movement
                         tooltipTimeout = setTimeout(() => {
-                            if (chart) {
+                            if (chart && chart.tooltip) {
                                 chart.tooltip.setActiveElements([], {x: 0, y: 0});
                                 chart.update('none');
                             }
                         }, 1000);
-                    } else {
-                        // If not hovering, hide immediately
-                        this.tooltip.setActiveElements([], {x: 0, y: 0});
-                        this.update('none');
                     }
                 },
                 plugins: {
@@ -677,34 +670,36 @@ function renderChart(data) {
                 console.log('Chart area:', chart.chartArea);
             }
 
-            // Add touch event handling for mobile
+            // Add mobile touch handling for tooltip auto-hide
             canvas.addEventListener('touchstart', function(e) {
                 // Clear any existing timeout
                 if (tooltipTimeout) {
                     clearTimeout(tooltipTimeout);
                 }
 
-                // Hide tooltip after touch
-                setTimeout(() => {
-                    if (chart) {
+                // On mobile, hide tooltip after 1 second of no interaction
+                tooltipTimeout = setTimeout(() => {
+                    if (chart && chart.tooltip) {
                         chart.tooltip.setActiveElements([], {x: 0, y: 0});
                         chart.update('none');
                     }
-                }, 100);
+                }, 1000);
             });
 
-            // Also hide tooltip when clicking elsewhere
-            canvas.addEventListener('click', function(e) {
-                if (tooltipTimeout) {
-                    clearTimeout(tooltipTimeout);
-                }
-
+            // Hide tooltip when touching elsewhere on the chart
+            canvas.addEventListener('touchend', function(e) {
+                // Short delay to allow tooltip to show first, then auto-hide
                 setTimeout(() => {
-                    if (chart) {
-                        chart.tooltip.setActiveElements([], {x: 0, y: 0});
-                        chart.update('none');
+                    if (tooltipTimeout) {
+                        clearTimeout(tooltipTimeout);
                     }
-                }, 500);
+                    tooltipTimeout = setTimeout(() => {
+                        if (chart && chart.tooltip) {
+                            chart.tooltip.setActiveElements([], {x: 0, y: 0});
+                            chart.update('none');
+                        }
+                    }, 1000);
+                }, 100);
             });
         }, 200);
 
