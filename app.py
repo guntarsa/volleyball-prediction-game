@@ -1410,20 +1410,13 @@ def get_race_chart_data():
             logging.error(f"Error sorting users: {e}")
             users_sorted = users
 
-        for i, user in enumerate(users_sorted):
+        # First, calculate cumulative points for all users for each game
+        users_cumulative_data = []
+        for user in users_sorted:
             try:
                 cumulative_points = 0
                 tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
-
-                player_data = {
-                    'name': user.name,
-                    'id': user.id,
-                    'color': colors[i % len(colors)],
-                    'data': [],
-                    'tournament_points': tournament_points,
-                    'total_score': user.get_total_score(),
-                    'final_position': i + 1
-                }
+                points_data = []
 
                 # Calculate cumulative points for each game
                 for game in games:
@@ -1433,14 +1426,52 @@ def get_race_chart_data():
                     if prediction and prediction.points is not None:
                         cumulative_points += prediction.points
 
-                    player_data['data'].append(cumulative_points)
+                    points_data.append(cumulative_points)
+
+                users_cumulative_data.append({
+                    'user': user,
+                    'points_data': points_data,
+                    'tournament_points': tournament_points,
+                    'total_score': user.get_total_score()
+                })
+
+            except Exception as e:
+                logging.error(f"Error processing user {user.name}: {e}")
+
+        # Now calculate positions for each game
+        for i, user_data in enumerate(users_cumulative_data):
+            try:
+                user = user_data['user']
+                position_data = []
+
+                # Calculate position for each game
+                for game_index in range(len(games)):
+                    # Get all users' scores at this point
+                    scores_at_game = [(ud['points_data'][game_index], idx) for idx, ud in enumerate(users_cumulative_data)]
+                    # Sort by score (descending) to get rankings
+                    scores_at_game.sort(key=lambda x: x[0], reverse=True)
+
+                    # Find this user's position
+                    user_position = next(pos + 1 for pos, (score, idx) in enumerate(scores_at_game) if idx == i)
+                    position_data.append(user_position)
+
+                player_data = {
+                    'name': user.name,
+                    'id': user.id,
+                    'color': colors[i % len(colors)],
+                    'data': position_data,  # Now contains positions instead of points
+                    'points_data': user_data['points_data'],  # Keep points for tooltips
+                    'tournament_points': user_data['tournament_points'],
+                    'total_score': user_data['total_score'],
+                    'final_position': i + 1
+                }
 
                 chart_data['players'].append(player_data)
 
             except Exception as e:
                 logging.error(f"Error processing user {user.name}: {e}")
 
-        logging.info(f"Successfully processed {len(chart_data['players'])} players")
+        logging.info(f"Successfully processed {len(chart_data['players'])} players with position data")
 
         return jsonify({'success': True, 'data': chart_data})
 

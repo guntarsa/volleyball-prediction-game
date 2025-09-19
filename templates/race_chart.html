@@ -52,54 +52,49 @@
         font-size: 14px;
     }
 
-    .player-filter-compact {
-        display: none;
-        margin-bottom: 15px;
-    }
-
-    .player-filter-compact.active {
-        display: block;
-    }
-
-    .player-filter-expanded {
-        display: block;
-    }
-
-    .player-filter-expanded.hidden {
-        display: none;
+    .selected-players-display {
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 14px;
+        color: #495057;
+        max-height: 60px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+        line-height: 1.4;
     }
 
     .filter-toggle {
-        background: none;
-        border: none;
-        color: #667eea;
-        text-decoration: underline;
-        cursor: pointer;
+        color: #667eea !important;
+        text-decoration: none !important;
         font-size: 14px;
-        padding: 0;
-        margin-left: 10px;
+        padding: 4px 8px !important;
     }
 
-    .selected-players-display {
-        background: #e9ecef;
-        border-radius: 6px;
-        padding: 10px;
-        font-size: 14px;
-        color: #495057;
-        max-height: 80px;
-        overflow-y: auto;
+    .filter-toggle:hover {
+        color: #5a6fd8 !important;
+        background-color: rgba(102, 126, 234, 0.1) !important;
     }
 
-    .game-interval-control {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 15px;
-        flex-wrap: wrap;
+    .player-checkboxes-container {
+        margin-top: 10px;
+        animation: slideDown 0.3s ease;
     }
 
-    .interval-input {
-        width: 80px;
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            max-height: 0;
+        }
+        to {
+            opacity: 1;
+            max-height: 200px;
+        }
+    }
+
+    .filter-group {
+        margin-bottom: 20px;
     }
 
     .player-checkbox {
@@ -260,58 +255,54 @@
                 </h4>
 
                 <form id="filter-form">
-                    <!-- Chart Display Options -->
-                    <div class="game-interval-control">
-                        <label for="game-interval" class="mb-0">Show every:</label>
-                        <select id="game-interval" class="form-control interval-input">
-                            <option value="1">Every game</option>
-                            <option value="2">Every 2nd game</option>
-                            <option value="3">Every 3rd game</option>
-                            <option value="5" selected>Every 5th game</option>
-                            <option value="10">Every 10th game</option>
-                        </select>
-                        <span class="text-muted">games on chart</span>
+                    <!-- Game Display Control -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="filter-group">
+                                <label for="game-interval" class="mb-2">Chart Density:</label>
+                                <select id="game-interval" class="form-control" onchange="updateChart()">
+                                    <option value="1">Show every game</option>
+                                    <option value="2">Show every 2nd game</option>
+                                    <option value="3">Show every 3rd game</option>
+                                    <option value="5" selected>Show every 5th game</option>
+                                    <option value="10">Show every 10th game</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="filter-group">
+                                <label class="mb-2">Quick Actions:</label>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
+                                        All Players
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info me-2" onclick="selectTopPlayers()">
+                                        Top 5
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNonePlayers()">
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Player Selection -->
                     <div class="filter-group">
-                        <label>Select Players:
-                            <button type="button" class="filter-toggle" onclick="togglePlayerFilter()" id="player-filter-toggle">
-                                Hide list
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="mb-0">Players:</label>
+                            <button type="button" class="btn btn-sm btn-link filter-toggle" onclick="togglePlayerFilter()" id="player-filter-toggle">
+                                <i class="fas fa-chevron-down me-1"></i>Show player list
                             </button>
-                        </label>
-
-                        <!-- Compact view -->
-                        <div class="player-filter-compact" id="player-filter-compact">
-                            <div class="selected-players-display" id="selected-players-display">
-                                <!-- Will be populated by JavaScript -->
-                            </div>
-                            <div class="mt-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
-                                    All
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
-                                    None
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
-                                    Top 5
-                                </button>
-                            </div>
                         </div>
 
-                        <!-- Expanded view -->
-                        <div class="player-filter-expanded" id="player-filter-expanded">
-                            <div class="mb-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllPlayers()">
-                                    Select All
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectNonePlayers()">
-                                    Select None
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-info" onclick="selectTopPlayers()">
-                                    Top 5 Only
-                                </button>
-                            </div>
+                        <!-- Compact view (default) -->
+                        <div class="selected-players-display" id="selected-players-display">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+
+                        <!-- Expanded view (hidden by default) -->
+                        <div class="player-checkboxes-container" id="player-checkboxes-container" style="display: none;">
                             <div class="player-checkboxes" id="player-checkboxes">
                                 {% for user in users %}
                                 <div class="player-checkbox">
@@ -323,30 +314,10 @@
                         </div>
                     </div>
 
-                    <!-- Date Range -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="filter-group">
-                                <label for="start-date">Start Date:</label>
-                                <input type="date" id="start-date" name="start_date" class="form-control">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="filter-group">
-                                <label for="end-date">End Date:</label>
-                                <input type="date" id="end-date" name="end_date" class="form-control">
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="text-center mt-3">
                         <button type="button" class="btn btn-primary" onclick="updateChart()">
                             <i class="fas fa-sync-alt me-2"></i>
                             Update Chart
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="resetFilters()">
-                            <i class="fas fa-undo me-2"></i>
-                            Reset Filters
                         </button>
                     </div>
                 </form>
@@ -357,7 +328,7 @@
                 <div class="chart-info">
                     <small class="text-white-50">
                         <i class="fas fa-info-circle me-1"></i>
-                        Showing cumulative points progression through finished games
+                        Showing position changes through finished games. Hover lines to see cumulative points.
                     </small>
                 </div>
                 <div class="export-buttons">
@@ -433,13 +404,7 @@ async function updateChart() {
         console.log('Selected users:', selectedUsers);
         selectedUsers.forEach(userId => params.append('users[]', userId));
 
-        // Add date range
-        if (formData.get('start_date')) {
-            params.append('start_date', formData.get('start_date'));
-        }
-        if (formData.get('end_date')) {
-            params.append('end_date', formData.get('end_date'));
-        }
+        // No date filtering needed anymore
 
         const url = `/api/race-chart-data?${params.toString()}`;
         console.log('Fetching URL:', url);
@@ -570,7 +535,7 @@ function renderChart(data) {
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Cumulative Points Race',
+                        text: 'Position Race Chart',
                         font: {
                             size: 18,
                             weight: 'bold'
@@ -596,22 +561,26 @@ function renderChart(data) {
                                 return `${game.label}\n${game.date}\n${game.round}`;
                             },
                             label: function(context) {
-                                const player = data.players.find(p => p.name === context.dataset.label);
-                                const points = context.parsed.y;
-                                let tooltip = `${context.dataset.label}: ${points} points`;
+                                const position = context.parsed.y;
+                                const gameIndex = context.dataIndex;
+                                const datasetData = context.dataset;
 
-                                if (player && player.tournament_points > 0) {
-                                    tooltip += ` (includes ${player.tournament_points} tournament points)`;
+                                // Try to get points from the dataset or the original player data
+                                let points = 0;
+                                if (datasetData.points_data && datasetData.points_data[gameIndex] !== undefined) {
+                                    points = datasetData.points_data[gameIndex];
+                                } else {
+                                    // Fallback: find in original data
+                                    const player = data.players.find(p => p.name === context.dataset.label);
+                                    if (player && player.points_data && player.points_data[gameIndex] !== undefined) {
+                                        points = player.points_data[gameIndex];
+                                    }
                                 }
 
-                                return tooltip;
-                            },
-                            afterLabel: function(context) {
-                                const player = data.players.find(p => p.name === context.dataset.label);
-                                if (player) {
-                                    return `Current position: #${player.final_position}`;
-                                }
-                                return '';
+                                let tooltip = `${context.dataset.label}: Position #${position}`;
+                                tooltip += `\nCumulative points: ${points}`;
+
+                                return tooltip.split('\n');
                             }
                         }
                     }
@@ -633,15 +602,23 @@ function renderChart(data) {
                     y: {
                         title: {
                             display: true,
-                            text: 'Cumulative Points',
+                            text: 'Position',
                             font: {
                                 size: 14,
                                 weight: 'bold'
                             }
                         },
-                        beginAtZero: true,
+                        reverse: true, // Invert Y-axis so position 1 is at top
+                        beginAtZero: false,
+                        min: 1,
                         grid: {
                             color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return '#' + value; // Add # prefix to position numbers
+                            }
                         }
                     }
                 },
@@ -712,28 +689,25 @@ function selectTopPlayers() {
 }
 
 function resetFilters() {
-    document.getElementById('start-date').value = '';
-    document.getElementById('end-date').value = '';
+    document.getElementById('game-interval').value = '5';
     selectAllPlayers();
     updateChart();
 }
 
 // New filter functions
 function togglePlayerFilter() {
-    const compactView = document.getElementById('player-filter-compact');
-    const expandedView = document.getElementById('player-filter-expanded');
+    const container = document.getElementById('player-checkboxes-container');
     const toggle = document.getElementById('player-filter-toggle');
+    const icon = toggle.querySelector('i');
 
-    if (compactView.classList.contains('active')) {
-        // Switch to expanded view
-        compactView.classList.remove('active');
-        expandedView.classList.remove('hidden');
-        toggle.textContent = 'Hide list';
+    if (container.style.display === 'none') {
+        // Show the list
+        container.style.display = 'block';
+        toggle.innerHTML = '<i class="fas fa-chevron-up me-1"></i>Hide player list';
     } else {
-        // Switch to compact view
-        compactView.classList.add('active');
-        expandedView.classList.add('hidden');
-        toggle.textContent = 'Show list';
+        // Hide the list
+        container.style.display = 'none';
+        toggle.innerHTML = '<i class="fas fa-chevron-down me-1"></i>Show player list';
     }
 }
 
@@ -758,7 +732,8 @@ function applyGameIntervalFilter(data, interval) {
             labels: data.games.map((game, index) => `Game ${index + 1}`),
             datasets: data.players.map(player => ({
                 label: player.name,
-                data: player.data,
+                data: player.data, // Position data
+                points_data: player.points_data, // Points data for tooltips
                 borderColor: player.color,
                 backgroundColor: player.color + '20',
                 borderWidth: window.innerWidth < 768 ? 2 : 3,
@@ -781,7 +756,8 @@ function applyGameIntervalFilter(data, interval) {
         labels: filteredGames.map((game, index) => `Game ${filteredIndices[index] + 1}`),
         datasets: data.players.map(player => ({
             label: player.name,
-            data: filteredIndices.map(index => player.data[index]),
+            data: filteredIndices.map(index => player.data[index]), // Position data
+            points_data: filteredIndices.map(index => player.points_data ? player.points_data[index] : 0), // Points data for tooltips
             borderColor: player.color,
             backgroundColor: player.color + '20',
             borderWidth: window.innerWidth < 768 ? 2 : 3,
