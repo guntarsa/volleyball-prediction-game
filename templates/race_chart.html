@@ -541,13 +541,13 @@ function renderChart(data) {
 
                     // If hovering over elements, show tooltip and set auto-hide
                     if (activeElements.length > 0) {
-                        // Auto-hide tooltip after 1 second of no mouse movement
+                        // Auto-hide tooltip after 4 seconds of no mouse movement
                         tooltipTimeout = setTimeout(() => {
                             if (chart && chart.tooltip) {
                                 chart.tooltip.setActiveElements([], {x: 0, y: 0});
                                 chart.update('none');
                             }
-                        }, 1000);
+                        }, 4000);
                     }
                 },
                 plugins: {
@@ -558,7 +558,7 @@ function renderChart(data) {
                             size: 18,
                             weight: 'bold'
                         },
-                        color: '#333'
+                        color: '#ffffff' // White title text
                     },
                     legend: {
                         display: true,
@@ -619,10 +619,14 @@ function renderChart(data) {
                             font: {
                                 size: 14,
                                 weight: 'bold'
-                            }
+                            },
+                            color: '#ffffff' // White axis title
+                        },
+                        ticks: {
+                            color: '#ffffff' // White axis labels
                         },
                         grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
+                            color: 'rgba(255, 255, 255, 0.2)' // Light grid lines
                         }
                     },
                     y: {
@@ -632,16 +636,18 @@ function renderChart(data) {
                             font: {
                                 size: 14,
                                 weight: 'bold'
-                            }
+                            },
+                            color: '#ffffff' // White axis title
                         },
                         reverse: true, // Invert Y-axis so position 1 is at top
                         beginAtZero: false,
                         min: 1,
                         grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
+                            color: 'rgba(255, 255, 255, 0.2)' // Light grid lines
                         },
                         ticks: {
                             stepSize: 1,
+                            color: '#ffffff', // White axis labels
                             callback: function(value) {
                                 return '#' + value; // Add # prefix to position numbers
                             }
@@ -677,13 +683,13 @@ function renderChart(data) {
                     clearTimeout(tooltipTimeout);
                 }
 
-                // On mobile, hide tooltip after 1 second of no interaction
+                // On mobile, hide tooltip after 4 seconds of no interaction
                 tooltipTimeout = setTimeout(() => {
                     if (chart && chart.tooltip) {
                         chart.tooltip.setActiveElements([], {x: 0, y: 0});
                         chart.update('none');
                     }
-                }, 1000);
+                }, 4000);
             });
 
             // Hide tooltip when touching elsewhere on the chart
@@ -698,7 +704,7 @@ function renderChart(data) {
                             chart.tooltip.setActiveElements([], {x: 0, y: 0});
                             chart.update('none');
                         }
-                    }, 1000);
+                    }, 4000);
                 }, 100);
             });
         }, 200);
