@@ -1278,7 +1278,7 @@ function handlePredictionSubmit(form) {
     params.append('team2_score', formData.get('team2_score'));
     
     // Make AJAX request
-    fetch('/admin_manage_prediction', {
+    fetch('/admin/manage_prediction', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -1287,20 +1287,28 @@ function handlePredictionSubmit(form) {
     })
     .then(response => {
         if (response.ok) {
-            return response.text();
+            return response.json();
         }
-        throw new Error('Network response was not ok');
+        return response.json().then(err => Promise.reject(err));
     })
     .then(data => {
-        // Show success message
-        showPredictionSuccess('Prediction saved successfully!');
-        
-        // Reload the current prediction to show updated state
-        loadPrediction();
+        if (data.success) {
+            // Show success message
+            showPredictionSuccess(data.message || 'Prediction saved successfully!');
+
+            // Reload the current prediction to show updated state
+            loadPrediction();
+        } else {
+            showPredictionError(data.error || 'Failed to save prediction');
+        }
     })
     .catch(error => {
         console.error('Error:', error);
-        showPredictionError('Failed to save prediction. Please try again.');
+        if (error && error.error) {
+            showPredictionError(error.error);
+        } else {
+            showPredictionError('Failed to save prediction. Please try again.');
+        }
     })
     .finally(() => {
         // Reset button state

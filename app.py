@@ -2408,6 +2408,8 @@ def admin_manage_prediction():
     team2_score = request.form.get('team2_score')
     
     if not all([user_id, game_id, team1_score, team2_score]):
+        if request.headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+            return jsonify({'success': False, 'error': 'Please fill in all fields'}), 400
         flash('Please fill in all fields', 'error')
         return redirect(url_for('admin'))
     
@@ -2427,10 +2429,10 @@ def admin_manage_prediction():
             raise ValueError("Invalid volleyball score")
             
     except ValueError as e:
-        if "Invalid volleyball score" in str(e):
-            flash('Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.', 'error')
-        else:
-            flash('Please enter valid values', 'error')
+        error_msg = 'Invalid volleyball score. Winner must have 3 sets, loser 0-2 sets.' if "Invalid volleyball score" in str(e) else 'Please enter valid values'
+        if request.headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+            return jsonify({'success': False, 'error': error_msg}), 400
+        flash(error_msg, 'error')
         return redirect(url_for('admin'))
     
     # Verify user and game exist
@@ -2438,10 +2440,14 @@ def admin_manage_prediction():
     game = Game.query.get(game_id)
     
     if not user:
+        if request.headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         flash('User not found', 'error')
         return redirect(url_for('admin'))
-    
+
     if not game:
+        if request.headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+            return jsonify({'success': False, 'error': 'Game not found'}), 404
         flash('Game not found', 'error')
         return redirect(url_for('admin'))
     
@@ -2459,7 +2465,8 @@ def admin_manage_prediction():
         if game.is_finished:
             existing.points = calculate_points(existing, game)
         
-        flash(f'Prediction updated for {user.name}: {game.team1} vs {game.team2}', 'success')
+        success_msg = f'Prediction updated for {user.name}: {game.team1} vs {game.team2}'
+        action = 'updated'
     else:
         prediction = Prediction(
             user_id=user_id,
@@ -2468,15 +2475,22 @@ def admin_manage_prediction():
             team2_score=team2_score,
             predicted_winner=predicted_winner
         )
-        
+
         # Calculate points if game is finished
         if game.is_finished:
             prediction.points = calculate_points(prediction, game)
-        
+
         db.session.add(prediction)
-        flash(f'Prediction created for {user.name}: {game.team1} vs {game.team2}', 'success')
-    
+        success_msg = f'Prediction created for {user.name}: {game.team1} vs {game.team2}'
+        action = 'created'
+
     db.session.commit()
+
+    # Return JSON response for AJAX calls
+    if request.headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+        return jsonify({'success': True, 'message': success_msg, 'action': action})
+
+    flash(success_msg, 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/recalculate_points', methods=['POST'])
