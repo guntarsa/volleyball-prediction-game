@@ -2758,12 +2758,12 @@ with app.app_context():
 def potential_points():
     """Show potential points for the earliest unfinished game with passed deadline"""
 
-    # Find earliest unfinished game where prediction deadline has passed
+    # Find unfinished game with earliest passed deadline
     current_time = get_riga_time()
     target_game = Game.query.filter(
         Game.is_finished == False,
         Game.prediction_deadline < current_time
-    ).order_by(Game.game_date.asc()).first()
+    ).order_by(Game.prediction_deadline.asc()).first()
 
     if not target_game:
         # No qualifying games found - let's provide more context
