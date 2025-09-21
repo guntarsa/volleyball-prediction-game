@@ -315,6 +315,96 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
     </div>
 </div>
 
+<!-- Logging Configuration Section -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-terminal"></i>
+                    Logging Configuration
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Debug Logging:</strong> Set to DEBUG level to see detailed system information in logs.
+                </div>
+
+                <form id="loggingConfigForm">
+                    <div class="mb-3">
+                        <label for="log_level" class="form-label">Current Log Level:</label>
+                        <select name="log_level" id="log_level" class="form-select" required>
+                            <option value="DEBUG">DEBUG - Show all debug information</option>
+                            <option value="INFO">INFO - Show general information</option>
+                            <option value="WARNING">WARNING - Show warnings and errors only</option>
+                            <option value="ERROR">ERROR - Show errors only</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>DEBUG:</strong> Shows detailed what-if analysis and SerpApi debugging<br>
+                            <strong>INFO:</strong> Default level with basic operation logs<br>
+                            <strong>WARNING/ERROR:</strong> Minimal logging for production
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-secondary" id="updateLogLevelBtn">
+                            <i class="fas fa-save"></i> Update Log Level
+                        </button>
+                        <small class="text-muted ms-2">Changes take effect immediately</small>
+                    </div>
+                </form>
+
+                <!-- Status display -->
+                <div id="loggingStatus" class="mt-3" style="display: none;"></div>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Tip:</strong> Use DEBUG level temporarily to troubleshoot issues, then switch back to INFO for normal operation.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <!-- Debug Information -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i>
+                    Debug Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>What-If Analysis Debug:</h6>
+                    <p class="text-muted mb-2">
+                        When log level is set to DEBUG, visit the What-If Analysis page to see detailed debugging information in the server logs.
+                    </p>
+                    <a href="{{ url_for('potential_points') }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                        <i class="fas fa-calculator"></i> Test What-If Analysis
+                    </a>
+                </div>
+
+                <div class="mb-3">
+                    <h6>SerpApi Debug:</h6>
+                    <p class="text-muted mb-2">
+                        DEBUG level shows detailed SerpApi search queries and results parsing.
+                    </p>
+                </div>
+
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Note:</strong> Debug logs appear in server console/logs, not in the browser. Check your deployment logs when DEBUG is enabled.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mt-4">
     <div class="col-md-6">
         <div class="card">
@@ -1675,6 +1765,83 @@ function showSearchStatus(type, message) {
     }
 }
 
+// Logging Configuration Functions
+function loadLoggingConfig() {
+    fetch('/admin/logging-config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('log_level').value = data.log_level;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading logging config:', error);
+        });
+}
+
+function handleLoggingConfigSubmit(event) {
+    event.preventDefault();
+
+    const logLevel = document.getElementById('log_level').value;
+    const submitBtn = document.getElementById('updateLogLevelBtn');
+
+    // Show loading state
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+    showLoggingStatus('info', '<i class="fas fa-save fa-spin"></i> Updating log level...');
+
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('log_level', logLevel);
+
+    // Make AJAX request
+    fetch('/admin/logging-config', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showLoggingStatus('success', `✅ Log level updated to ${logLevel}. Changes are active immediately.`);
+        } else {
+            showLoggingStatus('error', `❌ ${data.error || 'Failed to update log level'}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showLoggingStatus('error', '❌ Network error occurred. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Log Level';
+    });
+}
+
+function showLoggingStatus(type, message) {
+    const statusDiv = document.getElementById('loggingStatus');
+    let alertClass = 'alert-info';
+    let icon = 'fas fa-info-circle';
+
+    if (type === 'success') {
+        alertClass = 'alert-success';
+        icon = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        alertClass = 'alert-danger';
+        icon = 'fas fa-exclamation-triangle';
+    }
+
+    statusDiv.innerHTML = `<div class="alert ${alertClass}"><i class="${icon}"></i> ${message}</div>`;
+    statusDiv.style.display = 'block';
+
+    // Auto-hide success/error messages after 5 seconds
+    if (type !== 'info') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
 // Load configuration on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Load current recalculation configuration
@@ -1692,10 +1859,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load SerpApi usage info
     loadSerpApiUsage();
 
+    // Load logging configuration
+    loadLoggingConfig();
+
     // Set up manual search form handler
     const manualSearchForm = document.getElementById('manualSearchForm');
     if (manualSearchForm) {
         manualSearchForm.addEventListener('submit', handleManualSearch);
+    }
+
+    // Set up logging config form handler
+    const loggingConfigForm = document.getElementById('loggingConfigForm');
+    if (loggingConfigForm) {
+        loggingConfigForm.addEventListener('submit', handleLoggingConfigSubmit);
     }
 });
 </script>

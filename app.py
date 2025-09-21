@@ -367,6 +367,38 @@ class SerpApiUsage(db.Model):
         self.last_search_date = datetime.utcnow()
         db.session.commit()
 
+class LoggingConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    log_level = db.Column(db.String(20), default='INFO')  # DEBUG, INFO, WARNING, ERROR
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @staticmethod
+    def get_current_log_level():
+        """Get current log level, create if doesn't exist"""
+        config = LoggingConfig.query.first()
+        if not config:
+            config = LoggingConfig(log_level='INFO')
+            db.session.add(config)
+            db.session.commit()
+        return config.log_level
+
+    @staticmethod
+    def set_log_level(level):
+        """Set current log level"""
+        config = LoggingConfig.query.first()
+        if not config:
+            config = LoggingConfig(log_level=level)
+            db.session.add(config)
+        else:
+            config.log_level = level
+            config.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        # Update Python logging level
+        numeric_level = getattr(logging, level.upper(), logging.INFO)
+        logging.getLogger().setLevel(numeric_level)
+
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     prediction_deadline = db.Column(db.DateTime, nullable=False)
@@ -1889,7 +1921,7 @@ def delete_game(game_id):
 def bulk_delete_games():
     try:
         game_ids = request.form.getlist('game_ids')
-        print(f"Bulk delete request received for game IDs: {game_ids}")  # Debug log
+        logging.debug(f"Bulk delete request received for game IDs: {game_ids}")
         
         if not game_ids:
             flash('No games selected for deletion', 'error')
@@ -1908,17 +1940,17 @@ def bulk_delete_games():
                 # Delete the game - predictions will be automatically deleted due to cascade='all, delete-orphan'
                 db.session.delete(game)
                 deleted_count += 1
-                print(f"Marked game {game_id} for deletion")  # Debug log
+                logging.debug(f"Marked game {game_id} for deletion")
                 
             except Exception as e:
                 error_msg = f"Error processing game {game_id}: {str(e)}"
                 errors.append(error_msg)
-                print(error_msg)  # Debug log
+                logging.error(error_msg)
                 continue
         
         if deleted_count > 0:
             db.session.commit()
-            print(f"Database commit completed. Deleted: {deleted_count}")  # Debug log
+            logging.info(f"Database commit completed. Deleted: {deleted_count}")
         
         if deleted_count > 0:
             flash(f'Successfully deleted {deleted_count} games', 'success')
@@ -1933,7 +1965,7 @@ def bulk_delete_games():
     except Exception as e:
         db.session.rollback()
         error_msg = f"Bulk delete failed: {str(e)}"
-        print(error_msg)  # Debug log
+        logging.error(error_msg)
         flash(error_msg, 'error')
     
     return redirect(url_for('admin'))
@@ -2645,7 +2677,7 @@ with app.app_context():
     try:
         # Create all tables (this will only create missing tables)
         db.create_all()
-        print("Database tables initialized successfully")
+        logging.info("Database tables initialized successfully")
         
         # Check if we need to add the password_reset_required column
         inspector = db.inspect(db.engine)
@@ -2654,21 +2686,21 @@ with app.app_context():
         if 'user' in existing_tables:
             user_columns = [col['name'] for col in inspector.get_columns('user')]
             if 'password_reset_required' not in user_columns:
-                print("Adding password_reset_required column to existing User table...")
+                logging.info("Adding password_reset_required column to existing User table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE "user" ADD COLUMN password_reset_required BOOLEAN DEFAULT FALSE'))
                     conn.commit()
-                print("password_reset_required column added successfully")
+                logging.info("password_reset_required column added successfully")
         
         # Check if we need to add the country_code column to tournament_team table
         if 'tournament_team' in existing_tables:
             team_columns = [col['name'] for col in inspector.get_columns('tournament_team')]
             if 'country_code' not in team_columns:
-                print("Adding country_code column to existing TournamentTeam table...")
+                logging.info("Adding country_code column to existing TournamentTeam table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE tournament_team ADD COLUMN country_code VARCHAR(2)'))
                     conn.commit()
-                print("country_code column added successfully")
+                logging.info("country_code column added successfully")
                 
                 # Update existing teams with country codes
                 teams_to_update = [
@@ -2691,7 +2723,7 @@ with app.app_context():
                         except:
                             pass  # Continue if team doesn't exist
                     conn.commit()
-                print("Updated country codes for existing teams")
+                logging.info("Updated country codes for existing teams")
         
         # Check if we need to add new columns to player_message table
         if 'player_message' in existing_tables:
@@ -2699,19 +2731,19 @@ with app.app_context():
             
             # Add last_viewed_at column if missing
             if 'last_viewed_at' not in player_message_columns:
-                print("Adding last_viewed_at column to existing PlayerMessage table...")
+                logging.info("Adding last_viewed_at column to existing PlayerMessage table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE player_message ADD COLUMN last_viewed_at TIMESTAMP'))
                     conn.commit()
-                print("last_viewed_at column added successfully")
+                logging.info("last_viewed_at column added successfully")
             
             # Add latest_results_hash column if missing
             if 'latest_results_hash' not in player_message_columns:
-                print("Adding latest_results_hash column to existing PlayerMessage table...")
+                logging.info("Adding latest_results_hash column to existing PlayerMessage table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE player_message ADD COLUMN latest_results_hash VARCHAR(32)'))
                     conn.commit()
-                print("latest_results_hash column added successfully")
+                logging.info("latest_results_hash column added successfully")
 
         # Check if we need to add SerpApi columns to game table
         if 'game' in existing_tables:
@@ -2719,38 +2751,49 @@ with app.app_context():
 
             # Add auto_update_attempted column if missing
             if 'auto_update_attempted' not in game_columns:
-                print("Adding auto_update_attempted column to existing Game table...")
+                logging.info("Adding auto_update_attempted column to existing Game table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE game ADD COLUMN auto_update_attempted BOOLEAN DEFAULT FALSE'))
                     conn.commit()
-                print("auto_update_attempted column added successfully")
+                logging.info("auto_update_attempted column added successfully")
 
             # Add auto_update_timestamp column if missing
             if 'auto_update_timestamp' not in game_columns:
-                print("Adding auto_update_timestamp column to existing Game table...")
+                logging.info("Adding auto_update_timestamp column to existing Game table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE game ADD COLUMN auto_update_timestamp TIMESTAMP'))
                     conn.commit()
-                print("auto_update_timestamp column added successfully")
+                logging.info("auto_update_timestamp column added successfully")
 
             # Add result_source column if missing
             if 'result_source' not in game_columns:
-                print("Adding result_source column to existing Game table...")
+                logging.info("Adding result_source column to existing Game table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text("ALTER TABLE game ADD COLUMN result_source VARCHAR(50) DEFAULT 'manual'"))
                     conn.commit()
-                print("result_source column added successfully")
+                logging.info("result_source column added successfully")
 
             # Add serpapi_search_used column if missing
             if 'serpapi_search_used' not in game_columns:
-                print("Adding serpapi_search_used column to existing Game table...")
+                logging.info("Adding serpapi_search_used column to existing Game table...")
                 with db.engine.connect() as conn:
                     conn.execute(db.text('ALTER TABLE game ADD COLUMN serpapi_search_used BOOLEAN DEFAULT FALSE'))
                     conn.commit()
-                print("serpapi_search_used column added successfully")
+                logging.info("serpapi_search_used column added successfully")
+
+        # Initialize logging configuration
+        try:
+            current_log_level = LoggingConfig.get_current_log_level()
+            numeric_level = getattr(logging, current_log_level.upper(), logging.INFO)
+            logging.getLogger().setLevel(numeric_level)
+            logging.info(f"Logging initialized at {current_log_level} level")
+        except Exception as log_error:
+            logging.warning(f"Failed to initialize logging config: {log_error}")
+            # Set default log level
+            logging.getLogger().setLevel(logging.INFO)
 
     except Exception as e:
-        print(f"Database initialization error: {e}")
+        logging.error(f"Database initialization error: {e}")
         # Continue anyway - the app might still work with existing tables
 
 @app.route('/potential-points')
@@ -2760,10 +2803,38 @@ def potential_points():
 
     # Find unfinished game with earliest passed deadline
     current_time = get_riga_time()
-    target_game = Game.query.filter(
-        Game.is_finished == False,
-        Game.prediction_deadline < current_time
-    ).order_by(Game.prediction_deadline.asc()).first()
+
+    try:
+        # Debug logging for what-if analysis
+        logging.debug(f"What-if analysis - Current time: {current_time}")
+
+        all_games = Game.query.all()
+        unfinished_games = Game.query.filter_by(is_finished=False).all()
+
+        logging.debug(f"What-if analysis - Total games: {len(all_games)}")
+        logging.debug(f"What-if analysis - Unfinished games: {len(unfinished_games)}")
+
+        for game in unfinished_games:
+            deadline_passed = game.prediction_deadline < current_time
+            logging.debug(f"What-if analysis - Game: {game.team1} vs {game.team2}")
+            logging.debug(f"  Deadline: {game.prediction_deadline}")
+            logging.debug(f"  Deadline passed: {deadline_passed}")
+            logging.debug(f"  Is finished: {game.is_finished}")
+
+        target_game = Game.query.filter(
+            Game.is_finished == False,
+            Game.prediction_deadline < current_time
+        ).order_by(Game.prediction_deadline.asc()).first()
+
+        logging.debug(f"What-if analysis - Target game found: {target_game is not None}")
+        if target_game:
+            logging.debug(f"What-if analysis - Selected game: {target_game.team1} vs {target_game.team2}")
+        else:
+            logging.debug("What-if analysis - No qualifying games found")
+
+    except Exception as e:
+        logging.error(f"What-if analysis - Query error: {e}")
+        target_game = None
 
     if not target_game:
         # No qualifying games found - let's provide more context
@@ -3072,6 +3143,44 @@ def force_auto_update(game_id):
     except Exception as e:
         logging.error(f"Error in force auto-update: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+# Logging Configuration Routes
+@app.route('/admin/logging-config', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def logging_config():
+    """Get or update logging configuration"""
+    if request.method == 'GET':
+        current_level = LoggingConfig.get_current_log_level()
+        return jsonify({
+            'success': True,
+            'log_level': current_level
+        })
+
+    elif request.method == 'POST':
+        try:
+            log_level = request.form.get('log_level')
+            if not log_level:
+                return jsonify({'success': False, 'error': 'Log level is required'})
+
+            valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
+            if log_level not in valid_levels:
+                return jsonify({'success': False, 'error': f'Invalid log level. Must be one of: {", ".join(valid_levels)}'})
+
+            # Update log level in database and Python logging
+            LoggingConfig.set_log_level(log_level)
+
+            logging.info(f"Log level changed to {log_level} by admin user {current_user.name}")
+
+            return jsonify({
+                'success': True,
+                'message': f'Log level updated to {log_level}',
+                'log_level': log_level
+            })
+
+        except Exception as e:
+            logging.error(f"Error updating log level: {e}")
+            return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
