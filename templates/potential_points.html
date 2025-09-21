@@ -215,18 +215,19 @@
                                     <i class="fas fa-user"></i> Select Player to Analyze:
                                 </label>
                                 <select id="mobile-player-select" class="form-select" onchange="updateMobileView()">
-                                    <option value="all">Show All Players (Summary)</option>
                                     {% set users_list = scenarios[0]['user_results'] if scenarios else [] %}
+                                    {% set current_user_found = false %}
                                     {% for user_result in users_list %}
-                                    <option value="{{ user_result['user']['id'] }}" {% if user_result['user']['id'] == current_user.id %}selected{% endif %}>
+                                    <option value="{{ user_result['user']['id'] }}" {% if user_result['user']['id'] == current_user.id %}selected{% set current_user_found = true %}{% endif %}>
                                         {{ user_result['user']['name'] }}{% if user_result['user']['id'] == current_user.id %} (You){% endif %}
                                     </option>
                                     {% endfor %}
+                                    <option value="all" {% if not current_user_found %}selected{% endif %}>Show All Players (Summary)</option>
                                 </select>
                             </div>
 
                             <!-- All players summary view -->
-                            <div id="mobile-all-view">
+                            <div id="mobile-all-view" {% if current_user_found %}style="display: none;"{% endif %}>
                                 <div class="row mb-3">
                                     <div class="col-12">
                                         <div class="alert alert-info p-2">
@@ -284,7 +285,7 @@
                             </div>
 
                             <!-- Individual player detailed view -->
-                            <div id="mobile-player-view" style="display: none;">
+                            <div id="mobile-player-view" {% if not current_user_found %}style="display: none;"{% endif %}>
                                 <div class="card">
                                     <div class="card-header p-2">
                                         <h6 class="mb-1" id="selected-player-name">Player Details</h6>
@@ -329,6 +330,15 @@ const currentUserId = {{ current_user.id if current_user.is_authenticated else '
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize mobile view
     updateMobileView();
+
+    // If current user is selected by default, display their details immediately
+    const selector = document.getElementById('mobile-player-select');
+    if (selector && selector.value !== 'all' && currentUserId) {
+        const selectedUserId = parseInt(selector.value);
+        if (selectedUserId === currentUserId) {
+            displayPlayerDetails(selectedUserId);
+        }
+    }
 });
 
 function updateMobileView() {
