@@ -164,7 +164,7 @@
                                 <thead class="table-primary">
                                     <tr>
                                         <th rowspan="2" class="align-middle">Player</th>
-                                        <th rowspan="2" class="align-middle text-center">Current<br>Total</th>
+                                        <th rowspan="2" class="align-middle text-center">Current<br>Pos/Total</th>
                                         <th colspan="3" class="text-center border-end">{{ target_game.team1 }} Wins</th>
                                         <th colspan="3" class="text-center">{{ target_game.team2 }} Wins</th>
                                     </tr>
@@ -182,12 +182,23 @@
                                     {% for user_result in users_list %}
                                     <tr>
                                         <td><strong>{{ user_result['user'].name }}</strong></td>
-                                        <td class="text-center">{{ user_result['user'].get_total_score() }}</td>
+                                        <td class="text-center">
+                                            <strong>#{{ user_result['current_position'] }}</strong>
+                                            <br><small>{{ user_result['user'].get_total_score() }} pts</small>
+                                        </td>
                                         {% for scenario in scenarios %}
                                             {% set user_data = scenario['user_results'] | selectattr('user.id', 'equalto', user_result['user'].id) | first %}
                                             <td class="text-center {{ get_point_color_class(user_data['points_earned']) }} {% if loop.index == 3 %}border-end{% endif %}">
-                                                <strong>{{ user_data['total_after_game'] }}</strong>
-                                                <br><small>(+{{ user_data['points_earned'] }})</small>
+                                                {% if user_data['position_change'] > 0 %}
+                                                    <span class="badge bg-success mb-1"><i class="fas fa-arrow-up"></i> +{{ user_data['position_change'] }}</span>
+                                                {% elif user_data['position_change'] < 0 %}
+                                                    <span class="badge bg-danger mb-1"><i class="fas fa-arrow-down"></i> {{ user_data['position_change'] }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary mb-1"><i class="fas fa-equals"></i></span>
+                                                {% endif %}
+                                                <br>
+                                                <strong>#{{ user_data['new_position'] }}</strong> | <strong>{{ user_data['total_after_game'] }}</strong>
+                                                <br><small>(+{{ user_data['points_earned'] }} pts)</small>
                                             </td>
                                         {% endfor %}
                                     </tr>
@@ -196,42 +207,109 @@
                             </table>
                         </div>
 
-                        <!-- Mobile Card View -->
+                        <!-- Mobile-Friendly View -->
                         <div class="d-lg-none">
-                            {% for scenario in scenarios %}
-                            <div class="card mb-3">
-                                <div class="card-header">
-                                    <h6 class="mb-0">{{ scenario['label'] }}</h6>
+                            <!-- Player selector for mobile -->
+                            <div class="mb-3">
+                                <label for="mobile-player-select" class="form-label">
+                                    <i class="fas fa-user"></i> Select Player to Analyze:
+                                </label>
+                                <select id="mobile-player-select" class="form-select" onchange="updateMobileView()">
+                                    <option value="all">Show All Players (Summary)</option>
+                                    {% set users_list = scenarios[0]['user_results'] if scenarios else [] %}
+                                    {% for user_result in users_list %}
+                                    <option value="{{ user_result['user'].id }}" {% if user_result['user'].id == current_user.id %}selected{% endif %}>
+                                        {{ user_result['user'].name }}{% if user_result['user'].id == current_user.id %} (You){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- All players summary view -->
+                            <div id="mobile-all-view">
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="alert alert-info p-2">
+                                            <small><i class="fas fa-chart-line"></i> <strong>Position Changes Overview:</strong> See how the leaderboard could change with each game outcome. Select a player above for detailed analysis.</small>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        {% for user_data in scenario['user_results'][:10] %}
-                                        <div class="col-6 mb-2">
-                                            <div class="d-flex justify-content-between align-items-center p-2 rounded {{ get_point_color_class(user_data['points_earned']) }}">
-                                                <span class="fw-bold">{{ user_data['user'].name }}</span>
-                                                <span>
-                                                    <strong>{{ user_data['total_after_game'] }}</strong>
-                                                    <small>(+{{ user_data['points_earned'] }})</small>
+
+                                <!-- Major Position Changes by Scenario -->
+                                {% for scenario in scenarios %}
+                                <div class="card mb-3">
+                                    <div class="card-header p-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0"><i class="fas fa-volleyball-ball"></i> {{ scenario['label'] }}</h6>
+                                            <small class="text-muted">{{ scenario['notable_changes']|length }} position changes</small>
+                                        </div>
+                                    </div>
+                                    {% if scenario['notable_changes'] %}
+                                    <div class="card-body p-2">
+                                        {% for change in scenario['notable_changes'][:4] %}
+                                        <div class="d-flex justify-content-between align-items-center py-1 {% if not loop.last %}border-bottom{% endif %}">
+                                            <div class="d-flex align-items-center">
+                                                <span class="fw-bold {% if change['user'].id == current_user.id %}text-primary{% endif %}">
+                                                    {{ change['user'].name }}{% if change['user'].id == current_user.id %} (You){% endif %}
                                                 </span>
+                                                {% if change['position_change'] > 0 %}
+                                                    <span class="badge bg-success ms-2">
+                                                        <i class="fas fa-arrow-up"></i> +{{ change['position_change'] }}
+                                                    </span>
+                                                {% elif change['position_change'] < 0 %}
+                                                    <span class="badge bg-danger ms-2">
+                                                        <i class="fas fa-arrow-down"></i> {{ change['position_change'] }}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">#{{ change['current_position'] }} → #{{ change['new_position'] }}</small>
+                                                <br>
+                                                <small class="{{ 'text-success' if change['points_earned'] >= 4 else 'text-danger' if change['points_earned'] == 0 else 'text-warning' }}">+{{ change['points_earned'] }} pts</small>
                                             </div>
                                         </div>
                                         {% endfor %}
+                                        {% if scenario['notable_changes']|length > 4 %}
+                                        <small class="text-muted mt-1">... and {{ scenario['notable_changes']|length - 4 }} more position changes</small>
+                                        {% endif %}
                                     </div>
-                                    {% if scenario['user_results']|length > 10 %}
-                                    <small class="text-muted">... and {{ scenario['user_results']|length - 10 }} more players</small>
+                                    {% else %}
+                                    <div class="card-body p-2 text-center text-muted">
+                                        <small><i class="fas fa-equals"></i> No position changes in this scenario</small>
+                                    </div>
                                     {% endif %}
                                 </div>
+                                {% endfor %}
+
                             </div>
-                            {% endfor %}
+
+                            <!-- Individual player detailed view -->
+                            <div id="mobile-player-view" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header p-2">
+                                        <h6 class="mb-1" id="selected-player-name">Player Details</h6>
+                                        <small class="text-muted">Current total: <span id="selected-player-current">0</span> points</small>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <div class="row g-2" id="player-scenarios">
+                                            <!-- Will be populated by JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Additional Info -->
                         <div class="mt-4">
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle"></i>
-                                <strong>How to read this table:</strong> Each colored cell shows your potential total points if that game result occurs.
-                                The number in parentheses shows points earned from this specific game. Colors indicate the points earned:
-                                Green (6), Blue (4), Light Blue (2), Yellow (1), Red (0).
+                                <strong>How to read this analysis:</strong>
+                                <ul class="mb-2">
+                                    <li><strong>Position changes:</strong> <span class="badge bg-success"><i class="fas fa-arrow-up"></i> +2</span> means moving up 2 positions, <span class="badge bg-danger"><i class="fas fa-arrow-down"></i> -1</span> means dropping 1 position</li>
+                                    <li><strong>Points colors:</strong> Green (6), Blue (4), Light Blue (2), Yellow (1), Red (0)</li>
+                                    <li><strong>Desktop table:</strong> Shows new position | total points (points from this game)</li>
+                                    <li><strong>Mobile view:</strong> Select yourself or any player to see detailed position changes for each scenario</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -244,10 +322,103 @@
 
 {% block scripts %}
 <script>
-// Optional: Add any interactive features here
+// Mobile view management
+const scenarioData = {{ scenarios | tojson | safe }};
+const currentUserId = {{ current_user.id if current_user.is_authenticated else 'null' }};
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Highlight user's own row if needed
-    // Add tooltips or other interactive elements
+    // Initialize mobile view
+    updateMobileView();
+});
+
+function updateMobileView() {
+    const selector = document.getElementById('mobile-player-select');
+    const allView = document.getElementById('mobile-all-view');
+    const playerView = document.getElementById('mobile-player-view');
+
+    if (!selector || !allView || !playerView) return;
+
+    const selectedValue = selector.value;
+
+    if (selectedValue === 'all') {
+        allView.style.display = 'block';
+        playerView.style.display = 'none';
+    } else {
+        allView.style.display = 'none';
+        playerView.style.display = 'block';
+        displayPlayerDetails(parseInt(selectedValue));
+    }
+}
+
+function displayPlayerDetails(userId) {
+    const playerNameEl = document.getElementById('selected-player-name');
+    const playerCurrentEl = document.getElementById('selected-player-current');
+    const scenariosEl = document.getElementById('player-scenarios');
+
+    if (!scenarioData || scenarioData.length === 0) return;
+
+    // Find player data
+    const firstScenario = scenarioData[0];
+    const playerData = firstScenario.user_results.find(user => user.user.id === userId);
+
+    if (!playerData) return;
+
+    // Update player info
+    playerNameEl.textContent = playerData.user.name + (userId === currentUserId ? ' (You)' : '');
+    playerCurrentEl.textContent = playerData.user.total_score || '0';
+
+    // Clear and populate scenarios
+    scenariosEl.innerHTML = '';
+
+    scenarioData.forEach(scenario => {
+        const userResult = scenario.user_results.find(user => user.user.id === userId);
+        if (!userResult) return;
+
+        const pointsClass = getPointColorClass(userResult.points_earned);
+        const isGoodOutcome = userResult.points_earned >= 4;
+
+        // Position change indicators
+        let positionIndicator = '';
+        if (userResult.position_change > 0) {
+            positionIndicator = `<span class="badge bg-success"><i class="fas fa-arrow-up"></i> +${userResult.position_change}</span>`;
+        } else if (userResult.position_change < 0) {
+            positionIndicator = `<span class="badge bg-danger"><i class="fas fa-arrow-down"></i> ${userResult.position_change}</span>`;
+        } else {
+            positionIndicator = `<span class="badge bg-secondary"><i class="fas fa-equals"></i> 0</span>`;
+        }
+
+        scenariosEl.innerHTML += `
+            <div class="col-6 mb-2">
+                <div class="card ${pointsClass}" style="border: 2px solid ${isGoodOutcome ? '#28a745' : '#dc3545'};">
+                    <div class="card-body p-2 text-center">
+                        <div class="fw-bold small">${scenario.label}</div>
+                        <div class="h5 mb-1">${userResult.total_after_game} <small class="text-muted">pts</small></div>
+                        <div class="mb-1">${positionIndicator}</div>
+                        <small class="text-muted">#${userResult.current_position} → #${userResult.new_position}</small>
+                        <br>
+                        <small class="text-muted">(+${userResult.points_earned} from game)</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function getPointColorClass(points) {
+    if (points === 6) return 'bg-success text-white';
+    if (points === 4) return 'bg-primary text-white';
+    if (points === 2) return 'bg-info text-white';
+    if (points === 1) return 'bg-warning text-dark';
+    return 'bg-danger text-white';
+}
+
+// Auto-select current user on mobile if available
+document.addEventListener('DOMContentLoaded', function() {
+    const selector = document.getElementById('mobile-player-select');
+    if (selector && currentUserId) {
+        // Current user is already selected by default in the template
+        updateMobileView();
+    }
 });
 </script>
 {% endblock %}

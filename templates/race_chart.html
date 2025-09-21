@@ -812,9 +812,25 @@ function applyGameIntervalFilter(data, interval) {
         };
     }
 
-    // Filter games by interval
-    const filteredGames = data.games.filter((game, index) => index % interval === 0);
-    const filteredIndices = data.games.map((game, index) => index).filter(index => index % interval === 0);
+    // Filter games by interval, ensuring the last game is always included
+    const totalGames = data.games.length;
+    const lastIndex = totalGames - 1;
+
+    // Create array of indices to include, starting from the last game and working backward
+    const indicesToInclude = [];
+
+    // Always include the last game (if there are any games)
+    if (totalGames > 0) {
+        indicesToInclude.push(lastIndex);
+
+        // Add every nth game before the last one
+        for (let i = lastIndex - interval; i >= 0; i -= interval) {
+            indicesToInclude.unshift(i); // Add to beginning to maintain chronological order
+        }
+    }
+
+    const filteredGames = indicesToInclude.map(index => data.games[index]);
+    const filteredIndices = indicesToInclude;
 
     return {
         labels: filteredGames.map((game, index) => `Game ${filteredIndices[index] + 1}`),

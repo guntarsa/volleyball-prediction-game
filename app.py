@@ -2897,6 +2897,23 @@ def potential_points():
         {'team1_score': 0, 'team2_score': 3, 'label': f'{target_game.team2} 3-0'},
     ]
 
+    # Calculate current leaderboard positions
+    current_leaderboard = []
+    for user_id, data in user_data.items():
+        current_leaderboard.append({
+            'user_id': user_id,
+            'user': data['user'],
+            'total_points': data['current_total']
+        })
+
+    # Sort by current total points (descending) to get current positions
+    current_leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
+
+    # Create position mapping
+    current_positions = {}
+    for i, entry in enumerate(current_leaderboard):
+        current_positions[entry['user_id']] = i + 1  # Position starts from 1
+
     # Calculate potential points for each scenario
     scenarios = []
     for outcome in possible_outcomes:
@@ -2935,8 +2952,35 @@ def potential_points():
                 'has_prediction': data['prediction'] is not None and data['prediction'].team1_score is not None
             })
 
-        # Sort users by total points after game (descending)
+        # Sort users by total points after game (descending) to get new positions
         scenario['user_results'].sort(key=lambda x: x['total_after_game'], reverse=True)
+
+        # Calculate position changes
+        for i, user_result in enumerate(scenario['user_results']):
+            new_position = i + 1  # Position starts from 1
+            current_position = current_positions[user_result['user'].id]
+            position_change = current_position - new_position  # Positive = moved up, negative = moved down
+
+            user_result['current_position'] = current_position
+            user_result['new_position'] = new_position
+            user_result['position_change'] = position_change
+
+        # Calculate notable position changes for this scenario
+        notable_changes = []
+        for user_result in scenario['user_results']:
+            if abs(user_result['position_change']) >= 1:  # Any position change is notable
+                notable_changes.append({
+                    'user': user_result['user'],
+                    'current_position': user_result['current_position'],
+                    'new_position': user_result['new_position'],
+                    'position_change': user_result['position_change'],
+                    'points_earned': user_result['points_earned']
+                })
+
+        # Sort notable changes by magnitude of change (biggest changes first)
+        notable_changes.sort(key=lambda x: abs(x['position_change']), reverse=True)
+        scenario['notable_changes'] = notable_changes[:8]  # Limit to top 8 changes
+
         scenarios.append(scenario)
 
     return render_template('potential_points.html',
