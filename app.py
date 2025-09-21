@@ -11,6 +11,9 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+import atexit
 
 # Suppress absl logging warnings from Google AI libraries
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow warnings
@@ -2792,6 +2795,9 @@ with app.app_context():
             # Set default log level
             logging.getLogger().setLevel(logging.INFO)
 
+        # Initialize background scheduler for automatic result updates
+        init_scheduler()
+
     except Exception as e:
         logging.error(f"Database initialization error: {e}")
         # Continue anyway - the app might still work with existing tables
@@ -3200,6 +3206,19 @@ def force_auto_update(game_id):
         logging.error(f"Error in force auto-update: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/admin/trigger-auto-update', methods=['POST'])
+@login_required
+@admin_required
+def trigger_auto_update():
+    """Manually trigger the automatic update process (for testing)"""
+    try:
+        # Run the auto-update function manually
+        auto_update_results()
+        return jsonify({'success': True, 'message': 'Auto-update process triggered successfully'})
+    except Exception as e:
+        logging.error(f"Error triggering auto-update: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 # Logging Configuration Routes
 @app.route('/admin/logging-config', methods=['GET', 'POST'])
 @login_required
@@ -3238,6 +3257,98 @@ def logging_config():
             logging.error(f"Error updating log level: {e}")
             return jsonify({'success': False, 'error': str(e)})
 
+
+# Background scheduler for automatic result updates
+def auto_update_results():
+    """Background task to automatically update game results"""
+    with app.app_context():
+        try:
+            current_time = get_riga_time()
+            three_hours_ago = current_time - timedelta(hours=3)
+
+            # Find games that started 3+ hours ago, not finished, not attempted
+            pending_games = Game.query.filter(
+                Game.is_finished == False,
+                Game.auto_update_attempted == False,
+                Game.game_date <= three_hours_ago
+            ).limit(5).all()  # Limit to 5 games per run to avoid API limits
+
+            if pending_games:
+                logging.info(f"Auto-update: Found {len(pending_games)} games to check")
+
+                # Check SerpAPI usage before proceeding
+                from result_fetcher import get_monthly_usage_info
+                usage_info = get_monthly_usage_info()
+
+                if not usage_info.get('can_search', False):
+                    logging.warning(f"Auto-update: Monthly SerpAPI limit reached ({usage_info.get('searches_used', 0)}/{usage_info.get('monthly_limit', 0)})")
+                    return
+
+                # Try to update each game
+                successful_updates = 0
+                for game in pending_games:
+                    try:
+                        from result_fetcher import update_game_with_result
+                        success = update_game_with_result(game.id, force=False)
+
+                        if success:
+                            successful_updates += 1
+                            logging.info(f"Auto-update: Successfully updated {game.team1} vs {game.team2}")
+                        else:
+                            logging.info(f"Auto-update: No result found for {game.team1} vs {game.team2}")
+
+                    except Exception as e:
+                        logging.error(f"Auto-update: Error updating game {game.id}: {e}")
+                        continue
+
+                if successful_updates > 0:
+                    logging.info(f"Auto-update: Successfully updated {successful_updates}/{len(pending_games)} games")
+            else:
+                logging.debug("Auto-update: No games pending auto-update")
+
+        except Exception as e:
+            logging.error(f"Auto-update: Error in background task: {e}")
+
+
+# Initialize scheduler if not in debug mode and SERPAPI_API_KEY is available
+def init_scheduler():
+    """Initialize the background scheduler for automatic result updates"""
+    try:
+        # Only run scheduler if SerpAPI is available
+        serpapi_key = os.environ.get('SERPAPI_API_KEY')
+        if not serpapi_key:
+            logging.info("SerpAPI key not found - automatic result updates disabled")
+            return
+
+        # Check if scheduler should run (avoid in development/debug mode)
+        if os.environ.get('FLASK_ENV') == 'development':
+            logging.info("Development mode detected - automatic result updates disabled")
+            return
+
+        scheduler = BackgroundScheduler()
+
+        # Check for updates every 2 hours
+        scheduler.add_job(
+            func=auto_update_results,
+            trigger=IntervalTrigger(hours=2),
+            id='auto_update_results',
+            name='Automatic volleyball result updates',
+            replace_existing=True
+        )
+
+        scheduler.start()
+        logging.info("Background scheduler started - automatic result updates enabled (every 2 hours)")
+
+        # Shut down the scheduler when exiting the app
+        atexit.register(lambda: scheduler.shutdown())
+
+    except Exception as e:
+        logging.error(f"Failed to initialize background scheduler: {e}")
+
+
 if __name__ == '__main__':
+    # Initialize scheduler for automatic updates
+    init_scheduler()
+
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)

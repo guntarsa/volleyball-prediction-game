@@ -266,23 +266,132 @@ class VolleyballResultFetcher:
         # Look for team names around the score
         context_before = text[max(0, match_pos - 100):match_pos].lower()
         context_after = text[match_pos:match_pos + 100].lower()
-        context = context_before + context_after
+        full_context = context_before + context_after
 
         team1_lower = team1.lower()
         team2_lower = team2.lower()
 
-        # Find positions of team names relative to score
-        team1_pos = context.find(team1_lower)
-        team2_pos = context.find(team2_lower)
+        # Strategy 1: Look for explicit patterns like "TeamA 3-1 TeamB" or "TeamA beats TeamB 3-1"
+        # First try direct team-score pattern matching in wider context
+        full_text_lower = text.lower()
+
+        # Try to match pattern: team_name number - team_name number in the full text
+        team_score_pattern = rf"({team1_lower}|{team2_lower})\s*(\d+)\s*[-–]\s*({team1_lower}|{team2_lower})\s*(\d+)"
+        team_score_match = re.search(team_score_pattern, full_text_lower, re.IGNORECASE)
+
+        if team_score_match:
+            first_team = team_score_match.group(1).lower()
+            first_score = int(team_score_match.group(2))
+            second_team = team_score_match.group(3).lower()
+            second_score = int(team_score_match.group(4))
+
+            # Map the scores correctly: return (team1_score, team2_score)
+            if first_team == team1_lower and second_team == team2_lower:
+                # Pattern: "Team1 X - Team2 Y" -> return (X, Y)
+                return first_score, second_score
+            elif first_team == team2_lower and second_team == team1_lower:
+                # Pattern: "Team2 X - Team1 Y" -> return (Y, X)
+                return second_score, first_score
+
+        # Extract the actual score pattern with surrounding text
+        score_pattern = f"({score1})[:\\s-]+({score2})"
+        score_match = re.search(score_pattern, text[max(0, match_pos - 50):match_pos + 50])
+
+        if score_match:
+            # Look for team names immediately before and after the score
+            before_score = text[max(0, match_pos - 50):match_pos].lower()
+            after_score = text[match_pos:match_pos + 50].lower()
+
+            # Check if team1 appears right before score and team2 after (or vice versa)
+            team1_before_distance = before_score.rfind(team1_lower)
+            team2_before_distance = before_score.rfind(team2_lower)
+            team1_after_distance = after_score.find(team1_lower)
+            team2_after_distance = after_score.find(team2_lower)
+
+            # Pattern: "TeamA score1 - TeamB score2" means TeamA gets score1, TeamB gets score2
+            if (team1_before_distance >= 0 and team2_after_distance >= 0 and
+                (team2_before_distance < 0 or team1_before_distance > team2_before_distance)):
+                return score1, score2
+
+            # Pattern: "TeamB score1 - TeamA score2" means TeamB gets score1, TeamA gets score2
+            if (team2_before_distance >= 0 and team1_after_distance >= 0 and
+                (team1_before_distance < 0 or team2_before_distance > team1_before_distance)):
+                return score2, score1
+
+
+        # Strategy 2: Look for winner indicators combined with scores
+        # Check if team1 is mentioned as winner
+        team1_winner_patterns = [
+            rf"{team1_lower}.*(?:beat|defeat|won|win)",
+            rf"(?:beat|defeat|won|win).*{team1_lower}",
+            rf"{team1_lower}.*(?:victorious|victory|champion)"
+        ]
+
+        # Check if team2 is mentioned as winner
+        team2_winner_patterns = [
+            rf"{team2_lower}.*(?:beat|defeat|won|win)",
+            rf"(?:beat|defeat|won|win).*{team2_lower}",
+            rf"{team2_lower}.*(?:victorious|victory|champion)"
+        ]
+
+        # Check if team2 is mentioned as loser
+        team2_loser_patterns = [
+            rf"{team2_lower}.*(?:lost|lose|defeated)",
+            rf"(?:lost|lose|defeated).*{team2_lower}"
+        ]
+
+        # Check if team1 is mentioned as loser
+        team1_loser_patterns = [
+            rf"{team1_lower}.*(?:lost|lose|defeated)",
+            rf"(?:lost|lose|defeated).*{team1_lower}"
+        ]
+
+        team1_is_winner = any(re.search(pattern, full_context, re.IGNORECASE) for pattern in team1_winner_patterns)
+        team2_is_winner = any(re.search(pattern, full_context, re.IGNORECASE) for pattern in team2_winner_patterns)
+        team1_is_loser = any(re.search(pattern, full_context, re.IGNORECASE) for pattern in team1_loser_patterns)
+        team2_is_loser = any(re.search(pattern, full_context, re.IGNORECASE) for pattern in team2_loser_patterns)
+
+        if team1_is_winner or team2_is_loser:
+            # team1 won, so they should have the higher score
+            return (max(score1, score2), min(score1, score2))
+        elif team2_is_winner or team1_is_loser:
+            # team2 won, so they should have the higher score
+            return (min(score1, score2), max(score1, score2))
+
+        # Strategy 3: Original position-based logic (improved)
+        team1_pos = full_context.find(team1_lower)
+        team2_pos = full_context.find(team2_lower)
 
         if team1_pos >= 0 and team2_pos >= 0:
-            # If team1 appears first in context, assume first score is team1's
-            if team1_pos < team2_pos:
+            # Calculate distances from score position (centered in context)
+            score_center = len(context_before)
+            team1_distance = abs(team1_pos - score_center)
+            team2_distance = abs(team2_pos - score_center)
+
+            # The team mentioned closer to the score gets the first score
+            if team1_distance < team2_distance:
+                return score1, score2
+            elif team2_distance < team1_distance:
+                return score2, score1
+            # If equal distance, use position order
+            elif team1_pos < team2_pos:
                 return score1, score2
             else:
                 return score2, score1
 
-        # Default fallback - could be improved with more sophisticated logic
+        # Fallback: try to detect which team is the likely winner based on context
+        if score1 != score2:  # If scores are different
+            higher_score = max(score1, score2)
+            lower_score = min(score1, score2)
+
+            # Look for winner context
+            if re.search(rf"{team1_lower}.*(win|beat|defeat|victorious)", full_context, re.IGNORECASE):
+                return (higher_score, lower_score) if score1 > score2 else (lower_score, higher_score)
+            elif re.search(rf"{team2_lower}.*(win|beat|defeat|victorious)", full_context, re.IGNORECASE):
+                return (lower_score, higher_score) if score1 > score2 else (higher_score, lower_score)
+
+        # Final fallback - maintain original order but log the uncertainty
+        logging.warning(f"Could not determine team score assignment for {team1} vs {team2}, using fallback")
         return score1, score2
 
     def _update_usage_tracking(self):
@@ -402,3 +511,63 @@ def get_monthly_usage_info() -> Dict:
             'last_search': None,
             'can_search': False
         }
+
+
+def test_score_assignment():
+    """Test function to verify score assignment logic works correctly"""
+    fetcher = VolleyballResultFetcher()
+
+    test_cases = [
+        {
+            'text': 'Brazil beat Poland 3-1 in volleyball',
+            'team1': 'Brazil',
+            'team2': 'Poland',
+            'score1': 3,
+            'score2': 1,
+            'expected': (3, 1),
+            'description': 'Team1 wins, team1 mentioned first with win context'
+        },
+        {
+            'text': 'Poland lost to Brazil 1-3 in the championship',
+            'team1': 'Brazil',
+            'team2': 'Poland',
+            'score1': 1,
+            'score2': 3,
+            'expected': (3, 1),
+            'description': 'Team1 wins but score order is reversed'
+        },
+        {
+            'text': 'Final score: Poland 1 - Brazil 3',
+            'team1': 'Brazil',
+            'team2': 'Poland',
+            'score1': 1,
+            'score2': 3,
+            'expected': (3, 1),
+            'description': 'Team names around score in opposite order'
+        }
+    ]
+
+    print("Testing score assignment logic:")
+    print("=" * 50)
+
+    for i, case in enumerate(test_cases, 1):
+        result = fetcher._determine_team_scores(
+            case['text'],
+            case['team1'],
+            case['team2'],
+            case['score1'],
+            case['score2'],
+            case['text'].find(str(case['score1']))
+        )
+
+        status = "✓ PASS" if result == case['expected'] else "✗ FAIL"
+        print(f"Test {i}: {status}")
+        print(f"  Description: {case['description']}")
+        print(f"  Text: '{case['text']}'")
+        print(f"  Teams: {case['team1']} vs {case['team2']}")
+        print(f"  Input scores: {case['score1']}, {case['score2']}")
+        print(f"  Expected: {case['expected']}")
+        print(f"  Got: {result}")
+        print()
+
+    return True

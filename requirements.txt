@@ -11,3 +11,4 @@ psycopg[binary]==3.2.3
 pytz==2024.1
 google-generativeai
 serpapi
+APScheduler==3.10.4
