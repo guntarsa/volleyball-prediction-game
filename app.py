@@ -1613,7 +1613,12 @@ def make_prediction():
 @login_required
 @admin_required
 def admin():
-    games = Game.query.order_by(Game.game_date).all()
+    # Get unfinished games (nearest first) and finished games (latest first)
+    unfinished_games = Game.query.filter_by(is_finished=False).order_by(Game.game_date.asc()).all()
+    finished_games = Game.query.filter_by(is_finished=True).order_by(Game.game_date.desc()).all()
+
+    # Combine lists: unfinished games first, then finished games
+    games = unfinished_games + finished_games
     users = User.query.order_by(User.created_at).all()
     tournament_config = TournamentConfig.query.first()
     tournament_predictions = TournamentPrediction.query.join(User).all()
