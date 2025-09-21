@@ -387,16 +387,20 @@ function displayPlayerDetails(userId) {
             positionIndicator = `<span class="badge bg-secondary"><i class="fas fa-equals"></i> 0</span>`;
         }
 
+        // Determine text color for small elements based on background
+        const isYellowBackground = userResult.points_earned === 1;
+        const smallTextClass = isYellowBackground ? 'text-muted' : 'text-light';
+
         scenariosEl.innerHTML += `
             <div class="col-6 mb-2">
                 <div class="card ${pointsClass}" style="border: 2px solid ${isGoodOutcome ? '#28a745' : '#dc3545'};">
                     <div class="card-body p-2 text-center">
                         <div class="fw-bold small">${scenario.label}</div>
-                        <div class="h5 mb-1">${userResult.total_after_game} <small class="text-muted">pts</small></div>
+                        <div class="h5 mb-1">${userResult.total_after_game} <small class="${smallTextClass}">pts</small></div>
                         <div class="mb-1">${positionIndicator}</div>
-                        <small class="text-muted">#${userResult.current_position} → #${userResult.new_position}</small>
+                        <small class="${smallTextClass}">#${userResult.current_position} → #${userResult.new_position}</small>
                         <br>
-                        <small class="text-muted">(+${userResult.points_earned} from game)</small>
+                        <small class="${smallTextClass}">(+${userResult.points_earned} from game)</small>
                     </div>
                 </div>
             </div>
@@ -405,11 +409,11 @@ function displayPlayerDetails(userId) {
 }
 
 function getPointColorClass(points) {
-    if (points === 6) return 'bg-success text-white';
-    if (points === 4) return 'bg-primary text-white';
-    if (points === 2) return 'bg-info text-white';
-    if (points === 1) return 'bg-warning text-dark';
-    return 'bg-danger text-white';
+    if (points === 6) return 'bg-success text-light';
+    if (points === 4) return 'bg-primary text-light';
+    if (points === 2) return 'bg-info text-light';
+    if (points === 1) return 'bg-warning text-dark';  // Keep dark text for yellow background
+    return 'bg-danger text-light';
 }
 
 // Auto-select current user on mobile if available

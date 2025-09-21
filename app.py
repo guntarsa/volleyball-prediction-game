@@ -2999,15 +2999,15 @@ def potential_points():
 def get_point_color_class(points):
     """Return Bootstrap color class based on points earned"""
     if points == 6:
-        return "bg-success text-white"
+        return "bg-success text-light"
     elif points == 4:
-        return "bg-primary text-white"
+        return "bg-primary text-light"
     elif points == 2:
-        return "bg-info text-white"
+        return "bg-info text-light"
     elif points == 1:
-        return "bg-warning text-dark"
+        return "bg-warning text-dark"  # Keep dark text for yellow background
     else:  # 0 points
-        return "bg-danger text-white"
+        return "bg-danger text-light"
 
 # Make the color function available in templates
 app.jinja_env.globals.update(get_point_color_class=get_point_color_class)
