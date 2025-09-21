@@ -2815,15 +2815,19 @@ def potential_points():
         logging.debug(f"What-if analysis - Unfinished games: {len(unfinished_games)}")
 
         for game in unfinished_games:
-            deadline_passed = game.prediction_deadline < current_time
+            # Convert deadline to Riga timezone for comparison
+            game_deadline = to_riga_time(game.prediction_deadline)
+            deadline_passed = game_deadline < current_time
             logging.debug(f"What-if analysis - Game: {game.team1} vs {game.team2}")
-            logging.debug(f"  Deadline: {game.prediction_deadline}")
+            logging.debug(f"  Deadline: {game.prediction_deadline} -> {game_deadline}")
             logging.debug(f"  Deadline passed: {deadline_passed}")
             logging.debug(f"  Is finished: {game.is_finished}")
 
+        # Convert current time to naive datetime for database comparison
+        current_time_naive = current_time.replace(tzinfo=None)
         target_game = Game.query.filter(
             Game.is_finished == False,
-            Game.prediction_deadline < current_time
+            Game.prediction_deadline < current_time_naive
         ).order_by(Game.prediction_deadline.asc()).first()
 
         logging.debug(f"What-if analysis - Target game found: {target_game is not None}")
