@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}What-If Analysis - Men's World Championship 2025{% endblock %}
+
+{% block content %}
+<h1 class="page-title">What-If Analysis</h1>
+
+{% if message %}
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h4><i class="fas fa-info-circle text-info"></i> {{ message }}</h4>
+                        <p class="text-muted mb-0">Check back when games are pending results after their prediction deadlines.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="container-fluid">
+        <!-- Game Information -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-volleyball-ball"></i>
+                            Next Unfinished Game
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h4 class="mb-2">
+                                    {% if get_country_code(target_game.team1) %}
+                                        <span class="fi fi-{{ get_country_code(target_game.team1) }} team-flag"></span>
+                                    {% endif %}
+                                    {{ target_game.team1 }}
+                                    <span class="text-muted">vs</span>
+                                    {{ target_game.team2 }}
+                                    {% if get_country_code(target_game.team2) %}
+                                        <span class="fi fi-{{ get_country_code(target_game.team2) }} team-flag"></span>
+                                    {% endif %}
+                                </h4>
+                                <p class="mb-0">
+                                    <i class="fas fa-calendar-alt"></i> {{ target_game.game_date.strftime('%Y-%m-%d %H:%M') }} |
+                                    <strong>{{ target_game.round_name }}</strong>
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <span class="badge bg-warning text-dark fs-6">
+                                    <i class="fas fa-clock"></i> Deadline Passed
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Color Legend -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-palette"></i>
+                            Points Legend
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="d-flex flex-wrap gap-3 align-items-center">
+                                    <span class="badge bg-success text-white fs-6">6 pts</span> Perfect prediction
+                                    <span class="badge bg-primary text-white fs-6">4 pts</span> Correct winner + missed by 1 set
+                                    <span class="badge bg-info text-white fs-6">2 pts</span> Correct winner only
+                                    <span class="badge bg-warning text-dark fs-6">1 pt</span> Wrong winner but correct total sets
+                                    <span class="badge bg-danger text-white fs-6">0 pts</span> Completely wrong / No prediction
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Potential Points Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar"></i>
+                            Potential Total Points After Game
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Desktop Table View -->
+                        <div class="table-responsive d-none d-lg-block">
+                            <table class="table table-hover">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th rowspan="2" class="align-middle">Player</th>
+                                        <th rowspan="2" class="align-middle text-center">Current<br>Total</th>
+                                        <th colspan="3" class="text-center border-end">{{ target_game.team1 }} Wins</th>
+                                        <th colspan="3" class="text-center">{{ target_game.team2 }} Wins</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-center">3-0</th>
+                                        <th class="text-center">3-1</th>
+                                        <th class="text-center border-end">3-2</th>
+                                        <th class="text-center">3-2</th>
+                                        <th class="text-center">3-1</th>
+                                        <th class="text-center">3-0</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set users_list = scenarios[0]['user_results'] if scenarios else [] %}
+                                    {% for user_result in users_list %}
+                                    <tr>
+                                        <td><strong>{{ user_result['user'].name }}</strong></td>
+                                        <td class="text-center">{{ user_result['user'].get_total_score() }}</td>
+                                        {% for scenario in scenarios %}
+                                            {% set user_data = scenario['user_results'] | selectattr('user.id', 'equalto', user_result['user'].id) | first %}
+                                            <td class="text-center {{ get_point_color_class(user_data['points_earned']) }} {% if loop.index == 3 %}border-end{% endif %}">
+                                                <strong>{{ user_data['total_after_game'] }}</strong>
+                                                <br><small>(+{{ user_data['points_earned'] }})</small>
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile Card View -->
+                        <div class="d-lg-none">
+                            {% for scenario in scenarios %}
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">{{ scenario['label'] }}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        {% for user_data in scenario['user_results'][:10] %}
+                                        <div class="col-6 mb-2">
+                                            <div class="d-flex justify-content-between align-items-center p-2 rounded {{ get_point_color_class(user_data['points_earned']) }}">
+                                                <span class="fw-bold">{{ user_data['user'].name }}</span>
+                                                <span>
+                                                    <strong>{{ user_data['total_after_game'] }}</strong>
+                                                    <small>(+{{ user_data['points_earned'] }})</small>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% if scenario['user_results']|length > 10 %}
+                                    <small class="text-muted">... and {{ scenario['user_results']|length - 10 }} more players</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Additional Info -->
+                        <div class="mt-4">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>How to read this table:</strong> Each colored cell shows your potential total points if that game result occurs.
+                                The number in parentheses shows points earned from this specific game. Colors indicate the points earned:
+                                Green (6), Blue (4), Light Blue (2), Yellow (1), Red (0).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Optional: Add any interactive features here
+document.addEventListener('DOMContentLoaded', function() {
+    // Highlight user's own row if needed
+    // Add tooltips or other interactive elements
+});
+</script>
+{% endblock %}

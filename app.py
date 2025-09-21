@@ -2665,6 +2665,114 @@ with app.app_context():
         print(f"Database initialization error: {e}")
         # Continue anyway - the app might still work with existing tables
 
+@app.route('/potential-points')
+@login_required
+def potential_points():
+    """Show potential points for the earliest unfinished game with passed deadline"""
+
+    # Find earliest unfinished game where prediction deadline has passed
+    current_time = get_riga_time()
+    target_game = Game.query.filter(
+        Game.is_finished == False,
+        Game.prediction_deadline < current_time
+    ).order_by(Game.game_date.asc()).first()
+
+    if not target_game:
+        # No qualifying games found
+        return render_template('potential_points.html',
+                             target_game=None,
+                             scenarios=None,
+                             message="No unfinished games with passed deadlines found.")
+
+    # Get all users and their current total points
+    users = User.query.all()
+    user_data = {}
+    for user in users:
+        user_data[user.id] = {
+            'user': user,
+            'current_total': user.get_total_score(),
+            'prediction': None
+        }
+
+    # Get existing predictions for this game
+    predictions = Prediction.query.filter_by(game_id=target_game.id).all()
+    for prediction in predictions:
+        if prediction.user_id in user_data:
+            user_data[prediction.user_id]['prediction'] = prediction
+
+    # Define all possible volleyball outcomes
+    possible_outcomes = [
+        {'team1_score': 3, 'team2_score': 0, 'label': f'{target_game.team1} 3-0'},
+        {'team1_score': 3, 'team2_score': 1, 'label': f'{target_game.team1} 3-1'},
+        {'team1_score': 3, 'team2_score': 2, 'label': f'{target_game.team1} 3-2'},
+        {'team1_score': 2, 'team2_score': 3, 'label': f'{target_game.team2} 3-2'},
+        {'team1_score': 1, 'team2_score': 3, 'label': f'{target_game.team2} 3-1'},
+        {'team1_score': 0, 'team2_score': 3, 'label': f'{target_game.team2} 3-0'},
+    ]
+
+    # Calculate potential points for each scenario
+    scenarios = []
+    for outcome in possible_outcomes:
+        scenario = {
+            'label': outcome['label'],
+            'team1_score': outcome['team1_score'],
+            'team2_score': outcome['team2_score'],
+            'user_results': []
+        }
+
+        # Create a mock finished game for point calculation
+        mock_game = Game()
+        mock_game.team1 = target_game.team1
+        mock_game.team2 = target_game.team2
+        mock_game.team1_score = outcome['team1_score']
+        mock_game.team2_score = outcome['team2_score']
+        mock_game.is_finished = True
+
+        for user_id, data in user_data.items():
+            if data['prediction'] and data['prediction'].team1_score is not None and data['prediction'].team2_score is not None:
+                # User has a prediction - calculate points they would earn
+                points_earned = calculate_points(data['prediction'], mock_game)
+                if points_earned is None:
+                    points_earned = 0
+            else:
+                # User has no prediction - gets 0 points
+                points_earned = 0
+
+            # Calculate total points after this game
+            total_after_game = data['current_total'] + points_earned
+
+            scenario['user_results'].append({
+                'user': data['user'],
+                'points_earned': points_earned,
+                'total_after_game': total_after_game,
+                'has_prediction': data['prediction'] is not None and data['prediction'].team1_score is not None
+            })
+
+        # Sort users by total points after game (descending)
+        scenario['user_results'].sort(key=lambda x: x['total_after_game'], reverse=True)
+        scenarios.append(scenario)
+
+    return render_template('potential_points.html',
+                         target_game=target_game,
+                         scenarios=scenarios,
+                         message=None)
+
+def get_point_color_class(points):
+    """Return Bootstrap color class based on points earned"""
+    if points == 6:
+        return "bg-success text-white"
+    elif points == 4:
+        return "bg-primary text-white"
+    elif points == 2:
+        return "bg-info text-white"
+    elif points == 1:
+        return "bg-warning text-dark"
+    else:  # 0 points
+        return "bg-danger text-white"
+
+# Make the color function available in templates
+app.jinja_env.globals.update(get_point_color_class=get_point_color_class)
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
