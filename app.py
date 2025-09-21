@@ -2707,7 +2707,43 @@ with app.app_context():
                     conn.execute(db.text('ALTER TABLE player_message ADD COLUMN latest_results_hash VARCHAR(32)'))
                     conn.commit()
                 print("latest_results_hash column added successfully")
-            
+
+        # Check if we need to add SerpApi columns to game table
+        if 'game' in existing_tables:
+            game_columns = [col['name'] for col in inspector.get_columns('game')]
+
+            # Add auto_update_attempted column if missing
+            if 'auto_update_attempted' not in game_columns:
+                print("Adding auto_update_attempted column to existing Game table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE game ADD COLUMN auto_update_attempted BOOLEAN DEFAULT FALSE'))
+                    conn.commit()
+                print("auto_update_attempted column added successfully")
+
+            # Add auto_update_timestamp column if missing
+            if 'auto_update_timestamp' not in game_columns:
+                print("Adding auto_update_timestamp column to existing Game table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE game ADD COLUMN auto_update_timestamp TIMESTAMP'))
+                    conn.commit()
+                print("auto_update_timestamp column added successfully")
+
+            # Add result_source column if missing
+            if 'result_source' not in game_columns:
+                print("Adding result_source column to existing Game table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text("ALTER TABLE game ADD COLUMN result_source VARCHAR(50) DEFAULT 'manual'"))
+                    conn.commit()
+                print("result_source column added successfully")
+
+            # Add serpapi_search_used column if missing
+            if 'serpapi_search_used' not in game_columns:
+                print("Adding serpapi_search_used column to existing Game table...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text('ALTER TABLE game ADD COLUMN serpapi_search_used BOOLEAN DEFAULT FALSE'))
+                    conn.commit()
+                print("serpapi_search_used column added successfully")
+
     except Exception as e:
         print(f"Database initialization error: {e}")
         # Continue anyway - the app might still work with existing tables
