@@ -12,10 +12,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
 
+# Suppress absl logging warnings from Google AI libraries
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow warnings
+import warnings
+warnings.filterwarnings('ignore', message='All log messages before absl::InitializeLog')
+
 # AI functionality imports
 try:
     import google.generativeai as genai
     GEMINI_AVAILABLE = True
+    # Initialize absl logging to prevent warnings
+    try:
+        from absl import logging as absl_logging
+        absl_logging.set_verbosity(absl_logging.ERROR)
+    except ImportError:
+        pass
 except ImportError:
     GEMINI_AVAILABLE = False
     logging.warning("Google Generative AI package not installed. AI messages will use fallback templates only.")
@@ -226,6 +237,13 @@ class Game(db.Model):
     team1_score = db.Column(db.Integer, nullable=True)
     team2_score = db.Column(db.Integer, nullable=True)
     is_finished = db.Column(db.Boolean, default=False)
+
+    # SerpApi auto-update fields
+    auto_update_attempted = db.Column(db.Boolean, default=False)
+    auto_update_timestamp = db.Column(db.DateTime, nullable=True)
+    result_source = db.Column(db.String(50), default='manual')  # 'manual', 'auto_serpapi'
+    serpapi_search_used = db.Column(db.Boolean, default=False)
+
     predictions = db.relationship('Prediction', backref='game', lazy=True, cascade='all, delete-orphan')
     
     def is_prediction_open(self):
@@ -319,6 +337,35 @@ class DailyApiUsage(db.Model):
     calls_made = db.Column(db.Integer, default=0)
     daily_limit = db.Column(db.Integer, default=100)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class SerpApiUsage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    month_year = db.Column(db.String(7), unique=True, nullable=False)  # "2025-09"
+    searches_used = db.Column(db.Integer, default=0)
+    monthly_limit = db.Column(db.Integer, default=250)
+    last_search_date = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @staticmethod
+    def get_current_month_usage():
+        """Get current month's usage, create if doesn't exist"""
+        current_month = datetime.now().strftime('%Y-%m')
+        usage = SerpApiUsage.query.filter_by(month_year=current_month).first()
+        if not usage:
+            usage = SerpApiUsage(month_year=current_month)
+            db.session.add(usage)
+            db.session.commit()
+        return usage
+
+    def can_make_search(self):
+        """Check if we can make another search this month"""
+        return self.searches_used < self.monthly_limit
+
+    def increment_usage(self):
+        """Increment search count and update timestamp"""
+        self.searches_used += 1
+        self.last_search_date = datetime.utcnow()
+        db.session.commit()
 
 class TournamentConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2796,6 +2843,152 @@ def get_point_color_class(points):
 
 # Make the color function available in templates
 app.jinja_env.globals.update(get_point_color_class=get_point_color_class)
+
+# SerpApi Routes
+@app.route('/admin/serpapi-usage', methods=['GET'])
+@login_required
+@admin_required
+def get_serpapi_usage():
+    """Get current month's SerpApi usage information"""
+    try:
+        from result_fetcher import get_monthly_usage_info
+        usage_info = get_monthly_usage_info()
+        return jsonify({
+            'success': True,
+            **usage_info
+        })
+    except Exception as e:
+        logging.error(f"Error getting SerpApi usage: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'searches_used': 0,
+            'monthly_limit': 250,
+            'remaining': 250,
+            'can_search': False
+        })
+
+@app.route('/admin/manual-result-search', methods=['POST'])
+@login_required
+@admin_required
+def manual_result_search():
+    """Manual SerpApi search for game result"""
+    try:
+        game_id = request.form.get('game_id')
+        if not game_id:
+            return jsonify({'success': False, 'error': 'Game ID is required'})
+
+        game_id = int(game_id)
+        game = Game.query.get(game_id)
+        if not game:
+            return jsonify({'success': False, 'error': 'Game not found'})
+
+        if game.is_finished:
+            return jsonify({'success': False, 'error': 'Game is already finished'})
+
+        # Check monthly limit
+        usage = SerpApiUsage.get_current_month_usage()
+        if not usage.can_make_search():
+            return jsonify({
+                'success': False,
+                'error': f'Monthly search limit reached ({usage.searches_used}/{usage.monthly_limit})'
+            })
+
+        # Import and use result fetcher
+        from result_fetcher import update_game_with_result
+        success = update_game_with_result(game_id, force=True)
+
+        if success:
+            # Get updated game info
+            db.session.refresh(game)
+            return jsonify({
+                'success': True,
+                'message': f'Successfully found and updated result for {game.team1} vs {game.team2}',
+                'result': {
+                    'team1_score': game.team1_score,
+                    'team2_score': game.team2_score,
+                    'source': game.result_source
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No result found or search failed. The game may not have finished yet, or the result may not be available online.'
+            })
+
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Invalid game ID'})
+    except Exception as e:
+        logging.error(f"Error in manual result search: {e}")
+        return jsonify({'success': False, 'error': f'Search failed: {str(e)}'})
+
+@app.route('/admin/check-pending-auto-updates', methods=['GET'])
+@login_required
+@admin_required
+def check_pending_auto_updates():
+    """Check which games are eligible for auto-update (3+ hours after start)"""
+    try:
+        current_time = get_riga_time()
+        three_hours_ago = current_time - timedelta(hours=3)
+
+        # Find games that started 3+ hours ago, not finished, not attempted
+        pending_games = Game.query.filter(
+            Game.is_finished == False,
+            Game.auto_update_attempted == False,
+            Game.game_date <= three_hours_ago
+        ).order_by(Game.game_date.asc()).all()
+
+        pending_list = []
+        for game in pending_games:
+            pending_list.append({
+                'id': game.id,
+                'team1': game.team1,
+                'team2': game.team2,
+                'game_date': game.game_date.strftime('%Y-%m-%d %H:%M'),
+                'hours_since_start': int((current_time - to_riga_time(game.game_date)).total_seconds() / 3600)
+            })
+
+        return jsonify({
+            'success': True,
+            'pending_games': pending_list,
+            'count': len(pending_list)
+        })
+
+    except Exception as e:
+        logging.error(f"Error checking pending auto-updates: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/force-auto-update/<int:game_id>', methods=['POST'])
+@login_required
+@admin_required
+def force_auto_update(game_id):
+    """Force auto-update for a specific game"""
+    try:
+        game = Game.query.get(game_id)
+        if not game:
+            return jsonify({'success': False, 'error': 'Game not found'})
+
+        # Check monthly limit
+        usage = SerpApiUsage.get_current_month_usage()
+        if not usage.can_make_search():
+            return jsonify({
+                'success': False,
+                'error': f'Monthly search limit reached ({usage.searches_used}/{usage.monthly_limit})'
+            })
+
+        # Import and use result fetcher
+        from result_fetcher import update_game_with_result
+        success = update_game_with_result(game_id, force=True)
+
+        if success:
+            flash(f'Auto-update successful for {game.team1} vs {game.team2}', 'success')
+            return jsonify({'success': True, 'message': 'Auto-update completed successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Auto-update failed - no result found'})
+
+    except Exception as e:
+        logging.error(f"Error in force auto-update: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

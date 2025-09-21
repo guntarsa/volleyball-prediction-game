@@ -204,35 +204,90 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="fas fa-chart-line"></i>
-                    Current Points System
+                    <i class="fas fa-search"></i>
+                    Automatic Result Fetching
                 </h5>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <h6>Regular Game Predictions:</h6>
-                    <ul class="list-unstyled mb-3">
-                        <li><span class="badge bg-success me-2">6</span>Perfect prediction (exact score match)</li>
-                        <li><span class="badge bg-primary me-2">4</span>Correct winner + missed by 1 set</li>
-                        <li><span class="badge bg-info me-2">2</span>Correct winner only</li>
-                        <li><span class="badge bg-warning me-2">1</span>Wrong winner but correct total sets</li>
-                        <li><span class="badge bg-danger me-2">0</span>Completely wrong prediction</li>
-                    </ul>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>SerpApi Integration:</strong> Automatically search for volleyball match results using Google search.
                 </div>
-                
+
+                <!-- SerpApi Usage Info -->
                 <div class="mb-3">
-                    <h6>Non-Prediction Handling:</h6>
-                    <p class="text-muted mb-0">
-                        <i class="fas fa-arrow-right me-1"></i>
-                        Players without predictions receive default points based on Nth worst performance for each game.
-                    </p>
+                    <h6>Monthly Usage:</h6>
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body p-2 text-center">
+                                    <h6 class="text-primary mb-1" id="serpapi-used">-</h6>
+                                    <small class="text-muted">Used</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body p-2 text-center">
+                                    <h6 class="text-success mb-1" id="serpapi-remaining">-</h6>
+                                    <small class="text-muted">Remaining</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-light">
+                                <div class="card-body p-2 text-center">
+                                    <h6 class="text-info mb-1">250</h6>
+                                    <small class="text-muted">Limit</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="alert alert-warning">
-                    <small>
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Important:</strong> Recalculation will affect all user scores and leaderboard positions.
-                    </small>
+
+                <!-- Manual Search Form -->
+                <form id="manualSearchForm">
+                    <div class="mb-3">
+                        <label for="search_game_id" class="form-label">Select Game for Manual Search:</label>
+                        <select name="game_id" id="search_game_id" class="form-select" required>
+                            <option value="">-- Select Game --</option>
+                            {% for game in games %}
+                                {% if not game.is_finished %}
+                                <option value="{{ game.id }}"
+                                        data-team1="{{ game.team1 }}"
+                                        data-team2="{{ game.team2 }}"
+                                        data-serpapi-used="{{ 'true' if game.serpapi_search_used else 'false' }}">
+                                    {{ game.team1 }} vs {{ game.team2 }} - {{ game.game_date.strftime('%m/%d %H:%M') }}
+                                    {% if game.serpapi_search_used %}
+                                        <span class="text-warning">(SerpApi Used)</span>
+                                    {% endif %}
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Only unfinished games are shown. Games marked with "SerpApi Used" already consumed one search.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary" id="manualSearchBtn">
+                            <i class="fas fa-search"></i> Search Result Now
+                        </button>
+                        <small class="text-muted ms-2">This will use 1 SerpApi search</small>
+                    </div>
+                </form>
+
+                <!-- Search Status -->
+                <div id="searchStatus" class="mt-3" style="display: none;"></div>
+
+                <!-- Auto-Update Controls -->
+                <div class="mt-4">
+                    <h6>Auto-Update Controls:</h6>
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="checkPendingAutoUpdates()">
+                        <i class="fas fa-clock"></i> Check Pending Auto-Updates
+                    </button>
+                    <small class="text-muted ms-2">Check games eligible for 3-hour auto-update</small>
                 </div>
             </div>
         </div>
@@ -1446,6 +1501,129 @@ function showRecalculationError(message) {
     showRecalculationStatus('error', message);
 }
 
+// SerpApi Manual Search Functions
+function loadSerpApiUsage() {
+    fetch('/admin/serpapi-usage')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('serpapi-used').textContent = data.searches_used || 0;
+            document.getElementById('serpapi-remaining').textContent = data.remaining || 250;
+
+            // Update button state based on availability
+            const searchBtn = document.getElementById('manualSearchBtn');
+            if (!data.can_search) {
+                searchBtn.disabled = true;
+                searchBtn.innerHTML = '<i class="fas fa-ban"></i> Monthly Limit Reached';
+                searchBtn.classList.add('btn-secondary');
+                searchBtn.classList.remove('btn-primary');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading SerpApi usage:', error);
+        });
+}
+
+function handleManualSearch(event) {
+    event.preventDefault();
+
+    const gameSelect = document.getElementById('search_game_id');
+    const searchBtn = document.getElementById('manualSearchBtn');
+    const statusDiv = document.getElementById('searchStatus');
+
+    if (!gameSelect.value) {
+        showSearchStatus('error', 'Please select a game to search for.');
+        return;
+    }
+
+    // Show loading state
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+    showSearchStatus('info', '<i class="fas fa-search fa-spin"></i> Searching for match result using SerpApi...');
+
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('game_id', gameSelect.value);
+
+    // Make AJAX request
+    fetch('/admin/manual-result-search', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSearchStatus('success', `✅ ${data.message}<br><strong>Result:</strong> ${data.result.team1_score}-${data.result.team2_score}<br><strong>Source:</strong> ${data.result.source}`);
+
+            // Reload page after successful result to show updated game
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            showSearchStatus('error', `❌ ${data.error || 'Search failed'}`);
+        }
+
+        // Update usage info
+        loadSerpApiUsage();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showSearchStatus('error', '❌ Network error occurred. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="fas fa-search"></i> Search Result Now';
+    });
+}
+
+function checkPendingAutoUpdates() {
+    showSearchStatus('info', '<i class="fas fa-clock fa-spin"></i> Checking games eligible for auto-update...');
+
+    fetch('/admin/check-pending-auto-updates')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const count = data.pending_games ? data.pending_games.length : 0;
+                if (count > 0) {
+                    const gamesList = data.pending_games.map(g => `${g.team1} vs ${g.team2}`).join(', ');
+                    showSearchStatus('info', `⏰ Found ${count} game(s) eligible for auto-update: ${gamesList}`);
+                } else {
+                    showSearchStatus('info', '✅ No games currently eligible for auto-update (3+ hours after start time).');
+                }
+            } else {
+                showSearchStatus('error', data.error || 'Failed to check pending auto-updates');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showSearchStatus('error', 'Network error occurred while checking pending updates.');
+        });
+}
+
+function showSearchStatus(type, message) {
+    const statusDiv = document.getElementById('searchStatus');
+    let alertClass = 'alert-info';
+    let icon = 'fas fa-info-circle';
+
+    if (type === 'success') {
+        alertClass = 'alert-success';
+        icon = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        alertClass = 'alert-danger';
+        icon = 'fas fa-exclamation-triangle';
+    }
+
+    statusDiv.innerHTML = `<div class="alert ${alertClass}"><i class="${icon}"></i> ${message}</div>`;
+    statusDiv.style.display = 'block';
+
+    // Auto-hide success/error messages after 10 seconds
+    if (type !== 'info') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 10000);
+    }
+}
+
 // Load configuration on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Load current recalculation configuration
@@ -1459,6 +1637,15 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error loading recalculation config:', error);
         });
+
+    // Load SerpApi usage info
+    loadSerpApiUsage();
+
+    // Set up manual search form handler
+    const manualSearchForm = document.getElementById('manualSearchForm');
+    if (manualSearchForm) {
+        manualSearchForm.addEventListener('submit', handleManualSearch);
+    }
 });
 </script>
 {% endblock %}
