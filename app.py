@@ -2946,6 +2946,7 @@ def potential_points():
             total_after_game = data['current_total'] + points_earned
 
             scenario['user_results'].append({
+                'user_id': user_id,  # Store user_id separately for position calculations
                 'user': {
                     'id': data['user'].id,
                     'name': data['user'].name,
@@ -2962,7 +2963,7 @@ def potential_points():
         # Calculate position changes
         for i, user_result in enumerate(scenario['user_results']):
             new_position = i + 1  # Position starts from 1
-            current_position = current_positions[user_result['user'].id]
+            current_position = current_positions[user_result['user_id']]
             position_change = current_position - new_position  # Positive = moved up, negative = moved down
 
             user_result['current_position'] = current_position
@@ -2975,8 +2976,8 @@ def potential_points():
             if abs(user_result['position_change']) >= 1:  # Any position change is notable
                 notable_changes.append({
                     'user': {
-                        'id': user_result['user'].id,
-                        'name': user_result['user'].name
+                        'id': user_result['user']['id'],
+                        'name': user_result['user']['name']
                     },
                     'current_position': user_result['current_position'],
                     'new_position': user_result['new_position'],
