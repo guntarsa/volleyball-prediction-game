@@ -2678,11 +2678,35 @@ def potential_points():
     ).order_by(Game.game_date.asc()).first()
 
     if not target_game:
-        # No qualifying games found
+        # No qualifying games found - let's provide more context
+        total_games = Game.query.count()
+        finished_games = Game.query.filter_by(is_finished=True).count()
+        upcoming_games = Game.query.filter(
+            Game.is_finished == False,
+            Game.prediction_deadline >= current_time
+        ).count()
+
+        # Create a helpful message based on the situation
+        if total_games == 0:
+            message = "No games have been added to the system yet."
+            suggestion = "Check back once games are scheduled!"
+        elif upcoming_games > 0:
+            message = f"All unfinished games ({upcoming_games}) still have open prediction deadlines."
+            suggestion = "Make your predictions now! This analysis will be available once prediction deadlines pass."
+        else:
+            message = f"All {finished_games} games have been completed."
+            suggestion = "The tournament may be finished, or check back when new games are added."
+
         return render_template('potential_points.html',
                              target_game=None,
                              scenarios=None,
-                             message="No unfinished games with passed deadlines found.")
+                             message=message,
+                             suggestion=suggestion,
+                             stats={
+                                 'total_games': total_games,
+                                 'finished_games': finished_games,
+                                 'upcoming_games': upcoming_games
+                             })
 
     # Get all users and their current total points
     users = User.query.all()

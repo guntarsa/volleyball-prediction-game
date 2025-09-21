@@ -8,11 +8,71 @@
 {% if message %}
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-8">
+            <div class="col-md-10">
                 <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            What-If Analysis Status
+                        </h5>
+                    </div>
                     <div class="card-body text-center">
-                        <h4><i class="fas fa-info-circle text-info"></i> {{ message }}</h4>
-                        <p class="text-muted mb-0">Check back when games are pending results after their prediction deadlines.</p>
+                        <div class="mb-4">
+                            <i class="fas fa-exclamation-triangle text-warning fa-3x"></i>
+                        </div>
+                        <h4 class="text-primary mb-3">{{ message }}</h4>
+                        <p class="lead text-muted mb-4">{{ suggestion }}</p>
+
+                        {% if stats %}
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <div class="row">
+                                    <div class="col-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-3">
+                                                <h3 class="text-primary mb-1">{{ stats.total_games }}</h3>
+                                                <small class="text-muted">Total Games</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-3">
+                                                <h3 class="text-success mb-1">{{ stats.finished_games }}</h3>
+                                                <small class="text-muted">Completed</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-3">
+                                                <h3 class="text-warning mb-1">{{ stats.upcoming_games }}</h3>
+                                                <small class="text-muted">Open for Predictions</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="mt-4">
+                            {% if stats and stats.upcoming_games > 0 %}
+                                <a href="{{ url_for('predictions') }}" class="btn btn-primary btn-lg me-3">
+                                    <i class="fas fa-gamepad"></i> Make Predictions
+                                </a>
+                            {% endif %}
+                            <a href="{{ url_for('leaderboard') }}" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-medal"></i> View Leaderboard
+                            </a>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="alert alert-info">
+                                <i class="fas fa-lightbulb"></i>
+                                <strong>About What-If Analysis:</strong> This feature shows how different game outcomes could affect player rankings when prediction deadlines have passed but results aren't known yet. It helps you understand the potential impact of upcoming games on your position.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
