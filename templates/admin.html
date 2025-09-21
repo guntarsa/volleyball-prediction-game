@@ -251,11 +251,14 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                         <label for="search_game_id" class="form-label">Select Game for Manual Search:</label>
                         <select name="game_id" id="search_game_id" class="form-select" required>
                             <option value="">-- Select Game --</option>
+
+                            <!-- Unfinished games -->
                             {% for game in games %}
                                 {% if not game.is_finished %}
                                 <option value="{{ game.id }}"
                                         data-team1="{{ game.team1 }}"
                                         data-team2="{{ game.team2 }}"
+                                        data-finished="false"
                                         data-serpapi-used="{{ 'true' if game.serpapi_search_used else 'false' }}">
                                     {{ game.team1 }} vs {{ game.team2 }} - {{ game.game_date.strftime('%m/%d %H:%M') }}
                                     {% if game.serpapi_search_used %}
@@ -264,9 +267,27 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                                 </option>
                                 {% endif %}
                             {% endfor %}
+
+                            <!-- Last finished game for testing -->
+                            {% set last_finished = games | selectattr('is_finished', 'equalto', true) | sort(attribute='game_date', reverse=true) | first %}
+                            {% if last_finished %}
+                            <option disabled>──── Testing ────</option>
+                            <option value="{{ last_finished.id }}"
+                                    data-team1="{{ last_finished.team1 }}"
+                                    data-team2="{{ last_finished.team2 }}"
+                                    data-finished="true"
+                                    data-current-result="{{ last_finished.team1_score }}-{{ last_finished.team2_score }}"
+                                    data-serpapi-used="{{ 'true' if last_finished.serpapi_search_used else 'false' }}">
+                                🧪 TEST: {{ last_finished.team1 }} vs {{ last_finished.team2 }} - {{ last_finished.game_date.strftime('%m/%d %H:%M') }}
+                                (Result: {{ last_finished.team1_score }}-{{ last_finished.team2_score }})
+                                {% if last_finished.serpapi_search_used %}
+                                    <span class="text-warning">(SerpApi Used)</span>
+                                {% endif %}
+                            </option>
+                            {% endif %}
                         </select>
                         <div class="form-text">
-                            Only unfinished games are shown. Games marked with "SerpApi Used" already consumed one search.
+                            Unfinished games will be updated with results. The test game (🧪) will only show what SerpApi finds without overwriting existing results.
                         </div>
                     </div>
 
@@ -1535,14 +1556,25 @@ function handleManualSearch(event) {
         return;
     }
 
-    // Show loading state
+    // Check if this is a test game (finished game)
+    const selectedOption = gameSelect.options[gameSelect.selectedIndex];
+    const isTestMode = selectedOption.dataset.finished === 'true';
+    const currentResult = selectedOption.dataset.currentResult;
+
+    // Show appropriate loading message
     searchBtn.disabled = true;
     searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-    showSearchStatus('info', '<i class="fas fa-search fa-spin"></i> Searching for match result using SerpApi...');
+
+    if (isTestMode) {
+        showSearchStatus('info', `<i class="fas fa-search fa-spin"></i> 🧪 <strong>TEST MODE:</strong> Searching for match result using SerpApi...<br><small>Current result: ${currentResult} (will not be overwritten)</small>`);
+    } else {
+        showSearchStatus('info', '<i class="fas fa-search fa-spin"></i> Searching for match result using SerpApi...');
+    }
 
     // Prepare form data
     const formData = new FormData();
     formData.append('game_id', gameSelect.value);
+    formData.append('test_mode', isTestMode ? 'true' : 'false');
 
     // Make AJAX request
     fetch('/admin/manual-result-search', {
@@ -1552,12 +1584,31 @@ function handleManualSearch(event) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showSearchStatus('success', `✅ ${data.message}<br><strong>Result:</strong> ${data.result.team1_score}-${data.result.team2_score}<br><strong>Source:</strong> ${data.result.source}`);
+            if (data.test_mode) {
+                // Test mode - show comparison
+                const currentResultText = currentResult || 'Unknown';
+                const serpApiResult = `${data.result.team1_score}-${data.result.team2_score}`;
+                const isMatch = currentResultText === serpApiResult;
 
-            // Reload page after successful result to show updated game
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
+                showSearchStatus('success',
+                    `🧪 <strong>TEST RESULTS:</strong><br>` +
+                    `<strong>Current database result:</strong> ${currentResultText}<br>` +
+                    `<strong>SerpApi found result:</strong> ${serpApiResult}<br>` +
+                    `<strong>Source:</strong> ${data.result.source}<br>` +
+                    `${isMatch ?
+                        '<span class="text-success">✅ Results match!</span>' :
+                        '<span class="text-warning">⚠️ Results differ - no changes made to database</span>'
+                    }`
+                );
+            } else {
+                // Normal mode - show update
+                showSearchStatus('success', `✅ ${data.message}<br><strong>Result:</strong> ${data.result.team1_score}-${data.result.team2_score}<br><strong>Source:</strong> ${data.result.source}`);
+
+                // Reload page after successful result to show updated game
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            }
         } else {
             showSearchStatus('error', `❌ ${data.error || 'Search failed'}`);
         }

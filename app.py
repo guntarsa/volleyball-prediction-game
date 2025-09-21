@@ -2911,6 +2911,8 @@ def manual_result_search():
     """Manual SerpApi search for game result"""
     try:
         game_id = request.form.get('game_id')
+        test_mode = request.form.get('test_mode') == 'true'
+
         if not game_id:
             return jsonify({'success': False, 'error': 'Game ID is required'})
 
@@ -2919,7 +2921,8 @@ def manual_result_search():
         if not game:
             return jsonify({'success': False, 'error': 'Game not found'})
 
-        if game.is_finished:
+        # In test mode, allow finished games; in normal mode, only unfinished
+        if not test_mode and game.is_finished:
             return jsonify({'success': False, 'error': 'Game is already finished'})
 
         # Check monthly limit
@@ -2930,27 +2933,66 @@ def manual_result_search():
                 'error': f'Monthly search limit reached ({usage.searches_used}/{usage.monthly_limit})'
             })
 
-        # Import and use result fetcher
-        from result_fetcher import update_game_with_result
-        success = update_game_with_result(game_id, force=True)
+        if test_mode:
+            # Test mode: search but don't update database
+            from result_fetcher import search_game_result
+            result = search_game_result(game_id)
 
-        if success:
-            # Get updated game info
-            db.session.refresh(game)
-            return jsonify({
-                'success': True,
-                'message': f'Successfully found and updated result for {game.team1} vs {game.team2}',
-                'result': {
-                    'team1_score': game.team1_score,
-                    'team2_score': game.team2_score,
-                    'source': game.result_source
-                }
-            })
+            if result:
+                # Update usage tracking since we used an API call
+                usage.increment_usage()
+
+                # Mark that this game has used SerpApi for testing
+                if not game.serpapi_search_used:
+                    game.serpapi_search_used = True
+                    db.session.commit()
+
+                return jsonify({
+                    'success': True,
+                    'test_mode': True,
+                    'message': f'SerpApi test search completed for {game.team1} vs {game.team2}',
+                    'result': {
+                        'team1_score': result['team1_score'],
+                        'team2_score': result['team2_score'],
+                        'source': result['source']
+                    },
+                    'current_result': {
+                        'team1_score': game.team1_score,
+                        'team2_score': game.team2_score
+                    }
+                })
+            else:
+                # Still increment usage even if no result found
+                usage.increment_usage()
+                return jsonify({
+                    'success': False,
+                    'test_mode': True,
+                    'error': 'No result found in test search. The result may not be available online yet.'
+                })
         else:
-            return jsonify({
-                'success': False,
-                'error': 'No result found or search failed. The game may not have finished yet, or the result may not be available online.'
-            })
+            # Normal mode: search and update database
+            from result_fetcher import update_game_with_result
+            success = update_game_with_result(game_id, force=True)
+
+            if success:
+                # Get updated game info
+                db.session.refresh(game)
+                return jsonify({
+                    'success': True,
+                    'test_mode': False,
+                    'message': f'Successfully found and updated result for {game.team1} vs {game.team2}',
+                    'result': {
+                        'team1_score': game.team1_score,
+                        'team2_score': game.team2_score,
+                        'source': game.result_source
+                    }
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'test_mode': False,
+                    'error': 'No result found or search failed. The game may not have finished yet, or the result may not be available online.'
+                })
 
     except ValueError as e:
         return jsonify({'success': False, 'error': 'Invalid game ID'})
