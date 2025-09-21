@@ -2946,7 +2946,11 @@ def potential_points():
             total_after_game = data['current_total'] + points_earned
 
             scenario['user_results'].append({
-                'user': data['user'],
+                'user': {
+                    'id': data['user'].id,
+                    'name': data['user'].name,
+                    'total_score': data['current_total']
+                },
                 'points_earned': points_earned,
                 'total_after_game': total_after_game,
                 'has_prediction': data['prediction'] is not None and data['prediction'].team1_score is not None
@@ -2965,12 +2969,15 @@ def potential_points():
             user_result['new_position'] = new_position
             user_result['position_change'] = position_change
 
-        # Calculate notable position changes for this scenario
+        # Calculate notable position changes for this scenario (with serializable data)
         notable_changes = []
         for user_result in scenario['user_results']:
             if abs(user_result['position_change']) >= 1:  # Any position change is notable
                 notable_changes.append({
-                    'user': user_result['user'],
+                    'user': {
+                        'id': user_result['user'].id,
+                        'name': user_result['user'].name
+                    },
                     'current_position': user_result['current_position'],
                     'new_position': user_result['new_position'],
                     'position_change': user_result['position_change'],

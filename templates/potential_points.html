@@ -181,13 +181,13 @@
                                     {% set users_list = scenarios[0]['user_results'] if scenarios else [] %}
                                     {% for user_result in users_list %}
                                     <tr>
-                                        <td><strong>{{ user_result['user'].name }}</strong></td>
+                                        <td><strong>{{ user_result['user']['name'] }}</strong></td>
                                         <td class="text-center">
                                             <strong>#{{ user_result['current_position'] }}</strong>
-                                            <br><small>{{ user_result['user'].get_total_score() }} pts</small>
+                                            <br><small>{{ user_result['user']['total_score'] }} pts</small>
                                         </td>
                                         {% for scenario in scenarios %}
-                                            {% set user_data = scenario['user_results'] | selectattr('user.id', 'equalto', user_result['user'].id) | first %}
+                                            {% set user_data = scenario['user_results'] | selectattr('user.id', 'equalto', user_result['user']['id']) | first %}
                                             <td class="text-center {{ get_point_color_class(user_data['points_earned']) }} {% if loop.index == 3 %}border-end{% endif %}">
                                                 {% if user_data['position_change'] > 0 %}
                                                     <span class="badge bg-success mb-1"><i class="fas fa-arrow-up"></i> +{{ user_data['position_change'] }}</span>
@@ -218,8 +218,8 @@
                                     <option value="all">Show All Players (Summary)</option>
                                     {% set users_list = scenarios[0]['user_results'] if scenarios else [] %}
                                     {% for user_result in users_list %}
-                                    <option value="{{ user_result['user'].id }}" {% if user_result['user'].id == current_user.id %}selected{% endif %}>
-                                        {{ user_result['user'].name }}{% if user_result['user'].id == current_user.id %} (You){% endif %}
+                                    <option value="{{ user_result['user']['id'] }}" {% if user_result['user']['id'] == current_user.id %}selected{% endif %}>
+                                        {{ user_result['user']['name'] }}{% if user_result['user']['id'] == current_user.id %} (You){% endif %}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -249,8 +249,8 @@
                                         {% for change in scenario['notable_changes'][:4] %}
                                         <div class="d-flex justify-content-between align-items-center py-1 {% if not loop.last %}border-bottom{% endif %}">
                                             <div class="d-flex align-items-center">
-                                                <span class="fw-bold {% if change['user'].id == current_user.id %}text-primary{% endif %}">
-                                                    {{ change['user'].name }}{% if change['user'].id == current_user.id %} (You){% endif %}
+                                                <span class="fw-bold {% if change['user']['id'] == current_user.id %}text-primary{% endif %}">
+                                                    {{ change['user']['name'] }}{% if change['user']['id'] == current_user.id %} (You){% endif %}
                                                 </span>
                                                 {% if change['position_change'] > 0 %}
                                                     <span class="badge bg-success ms-2">
