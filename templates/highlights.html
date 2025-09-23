@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Volleyball Highlights{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="text-center mb-4">
+                <i class="fas fa-play-circle text-danger"></i>
+                Volleyball Highlights
+            </h1>
+            <p class="text-center text-muted mb-4">
+                Top moments and highlights from the latest completed games
+            </p>
+        </div>
+    </div>
+
+    {% if games_with_highlights %}
+        {% for game_data in games_with_highlights %}
+        <div class="card mb-5">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">
+                    <i class="fas fa-volleyball-ball"></i>
+                    {{ format_team_with_flag(game_data.game.team1) }}
+                    <span class="badge badge-light text-dark mx-2">
+                        {{ game_data.game.team1_score }} - {{ game_data.game.team2_score }}
+                    </span>
+                    {{ format_team_with_flag(game_data.game.team2) }}
+                </h3>
+                <small>
+                    {{ game_data.game.round_name }} |
+                    {{ game_data.game.game_date.strftime('%B %d, %Y at %H:%M') }}
+                </small>
+            </div>
+
+            <div class="card-body">
+                {% if game_data.highlights %}
+                    <div class="row">
+                        {% for highlight in game_data.highlights %}
+                        <div class="col-lg-6 col-xl-4 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <!-- Video Thumbnail -->
+                                <div class="video-thumbnail-container position-relative">
+                                    {% if highlight.thumbnail_url %}
+                                        <img src="{{ highlight.thumbnail_url }}"
+                                             class="card-img-top"
+                                             alt="{{ highlight.title }}"
+                                             style="height: 200px; object-fit: cover;">
+                                    {% else %}
+                                        <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center"
+                                             style="height: 200px;">
+                                            <i class="fas fa-play-circle fa-3x text-white"></i>
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Play Button Overlay -->
+                                    <div class="play-overlay position-absolute w-100 h-100 d-flex align-items-center justify-content-center"
+                                         style="top: 0; left: 0; background: rgba(0,0,0,0.3);">
+                                        <a href="{{ highlight.youtube_url }}"
+                                           target="_blank"
+                                           class="btn btn-danger btn-lg rounded-circle p-3">
+                                            <i class="fas fa-play"></i>
+                                        </a>
+                                    </div>
+
+                                    <!-- Duration Badge -->
+                                    {% if highlight.duration %}
+                                    <span class="badge badge-dark position-absolute"
+                                          style="bottom: 10px; right: 10px;">
+                                        {{ highlight.format_duration() }}
+                                    </span>
+                                    {% endif %}
+
+                                    <!-- Featured Badge -->
+                                    {% if highlight.is_featured %}
+                                    <span class="badge badge-warning position-absolute"
+                                          style="top: 10px; left: 10px;">
+                                        <i class="fas fa-star"></i> Featured
+                                    </span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ highlight.title }}</h6>
+
+                                    {% if highlight.description %}
+                                    <p class="card-text text-muted small">
+                                        {{ highlight.description[:100] }}{% if highlight.description|length > 100 %}...{% endif %}
+                                    </p>
+                                    {% endif %}
+
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            {% if highlight.channel_name %}
+                                                <i class="fab fa-youtube text-danger"></i>
+                                                {{ highlight.channel_name }}
+                                            {% endif %}
+                                        </small>
+
+                                        {% if highlight.view_count and highlight.view_count > 0 %}
+                                        <small class="text-muted">
+                                            <i class="fas fa-eye"></i>
+                                            {{ "{:,}".format(highlight.view_count) }} views
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No highlights found for this game yet</h5>
+                        <p class="text-muted">
+                            Highlights are automatically detected and added. Check back later!
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Featured Videos Section -->
+    {% if featured_videos %}
+    <div class="card mt-5">
+        <div class="card-header bg-success text-white">
+            <h3 class="mb-0">
+                <i class="fas fa-fire"></i>
+                Featured Volleyball Content
+            </h3>
+            <small>Latest highlights from top volleyball channels</small>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for video in featured_videos %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <!-- Video Thumbnail -->
+                        <div class="video-thumbnail-container position-relative">
+                            {% if video.thumbnail_url %}
+                                <img src="{{ video.thumbnail_url }}"
+                                     class="card-img-top"
+                                     alt="{{ video.title }}"
+                                     style="height: 180px; object-fit: cover;">
+                            {% else %}
+                                <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center"
+                                     style="height: 180px;">
+                                    <i class="fas fa-play-circle fa-3x text-white"></i>
+                                </div>
+                            {% endif %}
+
+                            <!-- Play Button Overlay -->
+                            <div class="play-overlay position-absolute w-100 h-100 d-flex align-items-center justify-content-center"
+                                 style="top: 0; left: 0; background: rgba(0,0,0,0.3);">
+                                <a href="{{ video.youtube_url }}"
+                                   target="_blank"
+                                   class="btn btn-danger btn-lg rounded-circle p-3">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            <h6 class="card-title">{{ video.title }}</h6>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="fab fa-youtube text-danger"></i>
+                                    {{ video.channel_name }}
+                                </small>
+
+                                {% if video.upload_date %}
+                                <small class="text-muted">
+                                    {{ video.upload_date.strftime('%b %d') }}
+                                </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- No Content Message -->
+    {% if not games_with_highlights and not featured_videos %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-volleyball-ball fa-4x text-muted mb-4"></i>
+                    <h4 class="text-muted">No highlights available yet</h4>
+                    <p class="text-muted">
+                        Highlights will appear here automatically after games are completed.<br>
+                        Make sure the YouTube API is configured to enable automatic highlight detection.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Custom CSS for video overlays -->
+<style>
+.video-thumbnail-container {
+    overflow: hidden;
+    border-radius: calc(.25rem - 1px) calc(.25rem - 1px) 0 0;
+}
+
+.play-overlay {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    cursor: pointer;
+}
+
+.video-thumbnail-container:hover .play-overlay {
+    opacity: 1;
+}
+
+.card {
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.team-flag {
+    width: 24px;
+    height: auto;
+    margin-right: 8px;
+}
+
+.btn-danger {
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+</style>
+{% endblock %}

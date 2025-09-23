@@ -419,6 +419,67 @@ class TournamentConfig(db.Model):
     def are_results_available(self):
         return self.is_finalized and all([self.first_place_result, self.second_place_result, self.third_place_result])
 
+
+class GameHighlight(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
+    youtube_url = db.Column(db.String(500), nullable=False)
+    youtube_video_id = db.Column(db.String(20), nullable=False)  # Extracted from URL
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    thumbnail_url = db.Column(db.String(500), nullable=True)
+    duration = db.Column(db.String(20), nullable=True)  # e.g., "PT5M30S" or "5:30"
+    video_type = db.Column(db.String(50), default='highlight')  # highlight, top_moment, interview
+    view_count = db.Column(db.Integer, nullable=True)
+    upload_date = db.Column(db.DateTime, nullable=True)
+    channel_name = db.Column(db.String(100), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    is_featured = db.Column(db.Boolean, default=False)  # For manually selected top highlights
+    auto_detected = db.Column(db.Boolean, default=False)  # True if found by automatic detection
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    game = db.relationship('Game', backref=db.backref('highlights', lazy=True, cascade='all, delete-orphan'))
+
+    def get_embed_url(self):
+        """Convert YouTube URL to embeddable format"""
+        if 'youtube.com/watch?v=' in self.youtube_url:
+            return self.youtube_url.replace('youtube.com/watch?v=', 'youtube.com/embed/')
+        elif 'youtu.be/' in self.youtube_url:
+            video_id = self.youtube_url.split('youtu.be/')[-1].split('?')[0]
+            return f'https://www.youtube.com/embed/{video_id}'
+        return self.youtube_url
+
+    def get_video_id(self):
+        """Extract video ID from YouTube URL"""
+        if 'youtube.com/watch?v=' in self.youtube_url:
+            return self.youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
+        elif 'youtu.be/' in self.youtube_url:
+            return self.youtube_url.split('youtu.be/')[-1].split('?')[0]
+        return self.youtube_video_id
+
+    def format_duration(self):
+        """Format duration for display"""
+        if not self.duration:
+            return "Unknown"
+        # Convert PT5M30S format to 5:30
+        if self.duration.startswith('PT'):
+            import re
+            match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', self.duration)
+            if match:
+                hours, minutes, seconds = match.groups()
+                parts = []
+                if hours:
+                    parts.append(f"{hours}h")
+                if minutes:
+                    parts.append(f"{minutes}m")
+                if seconds:
+                    parts.append(f"{seconds}s")
+                return " ".join(parts) if parts else "0s"
+        return self.duration
+
+
 # Performance Analysis Functions
 def calculate_performance_hash(user_id):
     """Calculate a hash based on user's current performance metrics"""
@@ -1576,6 +1637,85 @@ def get_user_message():
         fallback_message = {'text': '🎯 Keep making those predictions!', 'category': 'general', 'cached': False}
         return jsonify({'success': True, 'message': fallback_message})
 
+@app.route('/highlights')
+@login_required
+def highlights():
+    """Display volleyball highlights from the latest games"""
+    try:
+        # Get the 2 most recent completed games
+        recent_games = Game.query.filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None)
+        ).order_by(Game.game_date.desc()).limit(2).all()
+
+        games_with_highlights = []
+
+        for game in recent_games:
+            # Get existing highlights for this game
+            existing_highlights = GameHighlight.query.filter_by(
+                game_id=game.id,
+                is_active=True
+            ).order_by(
+                GameHighlight.is_featured.desc(),
+                GameHighlight.view_count.desc()
+            ).limit(5).all()
+
+            # If no highlights exist, try to search for some
+            if not existing_highlights:
+                from youtube_service import search_game_highlights
+                videos = search_game_highlights(game.id)
+
+                # Save the best videos as highlights
+                for video in videos[:3]:  # Save top 3
+                    try:
+                        highlight = GameHighlight(
+                            game_id=game.id,
+                            youtube_url=video['youtube_url'],
+                            youtube_video_id=video['video_id'],
+                            title=video['title'],
+                            description=video['description'][:500] if video['description'] else '',
+                            thumbnail_url=video['thumbnail_url'],
+                            duration=video.get('duration', ''),
+                            channel_name=video['channel_name'],
+                            view_count=video.get('view_count', 0),
+                            upload_date=video['upload_date'],
+                            auto_detected=True
+                        )
+                        db.session.add(highlight)
+                        existing_highlights.append(highlight)
+                    except Exception as e:
+                        logging.error(f"Error saving highlight: {e}")
+                        continue
+
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    logging.error(f"Error committing highlights: {e}")
+                    db.session.rollback()
+
+            games_with_highlights.append({
+                'game': game,
+                'highlights': existing_highlights[:5]  # Limit to 5 highlights per game
+            })
+
+        # Get some featured/trending videos from volleyball channels
+        featured_videos = []
+        try:
+            from youtube_service import get_featured_channels_latest
+            featured_videos = get_featured_channels_latest()[:6]  # Get 6 featured videos
+        except Exception as e:
+            logging.error(f"Error getting featured videos: {e}")
+
+        return render_template('highlights.html',
+                             games_with_highlights=games_with_highlights,
+                             featured_videos=featured_videos)
+
+    except Exception as e:
+        logging.error(f"Error loading highlights page: {e}")
+        flash('Error loading highlights. Please try again later.', 'error')
+        return redirect(url_for('index'))
+
 # Removed add_user route - users now register themselves
 
 @app.route('/make_prediction', methods=['POST'])
@@ -2675,6 +2815,196 @@ def admin_get_prediction():
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid parameters'})
 
+
+# Background scheduler for automatic result updates
+def auto_update_results():
+    """Background task to automatically update game results"""
+    with app.app_context():
+        try:
+            current_time = get_riga_time()
+            three_hours_ago = current_time - timedelta(hours=3)
+
+            # Find games that started 3+ hours ago, not finished, not attempted
+            pending_games = Game.query.filter(
+                Game.is_finished == False,
+                Game.auto_update_attempted == False,
+                Game.game_date <= three_hours_ago
+            ).limit(5).all()  # Limit to 5 games per run to avoid API limits
+
+            if pending_games:
+                logging.info(f"Auto-update: Found {len(pending_games)} games to check")
+
+                # Check SerpAPI usage before proceeding
+                from result_fetcher import get_monthly_usage_info
+                usage_info = get_monthly_usage_info()
+
+                if not usage_info.get('can_search', False):
+                    logging.warning(f"Auto-update: Monthly SerpAPI limit reached ({usage_info.get('searches_used', 0)}/{usage_info.get('monthly_limit', 0)})")
+                    return
+
+                # Try to update each game
+                successful_updates = 0
+                for game in pending_games:
+                    try:
+                        from result_fetcher import update_game_with_result
+                        success = update_game_with_result(game.id, force=False)
+
+                        if success:
+                            successful_updates += 1
+                            logging.info(f"Auto-update: Successfully updated {game.team1} vs {game.team2}")
+                        else:
+                            logging.info(f"Auto-update: No result found for {game.team1} vs {game.team2}")
+
+                    except Exception as e:
+                        logging.error(f"Auto-update: Error updating game {game.id}: {e}")
+                        continue
+
+                if successful_updates > 0:
+                    logging.info(f"Auto-update: Successfully updated {successful_updates}/{len(pending_games)} games")
+            else:
+                logging.debug("Auto-update: No games pending auto-update")
+
+        except Exception as e:
+            logging.error(f"Auto-update: Error in background task: {e}")
+
+
+def auto_detect_highlights():
+    """Background task to automatically detect and save volleyball highlights"""
+    with app.app_context():
+        try:
+            # Check if YouTube API is available
+            youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
+            if not youtube_api_key:
+                logging.debug("YouTube API key not available - skipping highlight detection")
+                return
+
+            # Get recent completed games that don't have highlights yet
+            cutoff_date = datetime.now() - timedelta(days=7)  # Last 7 days
+            games_without_highlights = db.session.query(Game).filter(
+                Game.is_finished == True,
+                Game.team1_score.isnot(None),
+                Game.team2_score.isnot(None),
+                Game.game_date >= cutoff_date
+            ).outerjoin(GameHighlight).filter(
+                GameHighlight.id.is_(None)
+            ).limit(3).all()  # Process max 3 games per run
+
+            if not games_without_highlights:
+                logging.debug("Auto-highlight: No games without highlights found")
+                return
+
+            logging.info(f"Auto-highlight: Found {len(games_without_highlights)} games without highlights")
+
+            from youtube_service import search_game_highlights
+
+            highlights_added = 0
+            for game in games_without_highlights:
+                try:
+                    logging.info(f"Auto-highlight: Searching highlights for {game.team1} vs {game.team2}")
+
+                    # Search for highlights
+                    videos = search_game_highlights(game.id)
+
+                    if videos:
+                        # Save the best highlights (top 3)
+                        for video in videos[:3]:
+                            try:
+                                # Check if this video already exists for any game
+                                existing = GameHighlight.query.filter_by(
+                                    youtube_video_id=video['video_id']
+                                ).first()
+
+                                if existing:
+                                    logging.debug(f"Video {video['video_id']} already exists, skipping")
+                                    continue
+
+                                highlight = GameHighlight(
+                                    game_id=game.id,
+                                    youtube_url=video['youtube_url'],
+                                    youtube_video_id=video['video_id'],
+                                    title=video['title'][:200],  # Truncate title if too long
+                                    description=video['description'][:500] if video['description'] else '',
+                                    thumbnail_url=video['thumbnail_url'],
+                                    duration=video.get('duration', ''),
+                                    channel_name=video['channel_name'],
+                                    view_count=video.get('view_count', 0),
+                                    upload_date=video['upload_date'],
+                                    auto_detected=True,
+                                    video_type='highlight'
+                                )
+                                db.session.add(highlight)
+                                highlights_added += 1
+
+                                logging.info(f"Auto-highlight: Added highlight '{video['title'][:50]}...' for {game.team1} vs {game.team2}")
+
+                            except Exception as e:
+                                logging.error(f"Auto-highlight: Error saving highlight: {e}")
+                                continue
+
+                        try:
+                            db.session.commit()
+                        except Exception as e:
+                            logging.error(f"Auto-highlight: Error committing highlights for game {game.id}: {e}")
+                            db.session.rollback()
+
+                    else:
+                        logging.info(f"Auto-highlight: No highlights found for {game.team1} vs {game.team2}")
+
+                except Exception as e:
+                    logging.error(f"Auto-highlight: Error processing game {game.id}: {e}")
+                    continue
+
+            if highlights_added > 0:
+                logging.info(f"Auto-highlight: Successfully added {highlights_added} highlights")
+
+        except Exception as e:
+            logging.error(f"Auto-highlight: Error in background task: {e}")
+
+
+def init_scheduler():
+    """Initialize the background scheduler for automatic result updates"""
+    try:
+        # Only run scheduler if SerpAPI is available
+        serpapi_key = os.environ.get('SERPAPI_API_KEY')
+        if not serpapi_key:
+            logging.info("SerpAPI key not found - automatic result updates disabled")
+            return
+
+        # Check if scheduler should run (avoid in development/debug mode)
+        if os.environ.get('FLASK_ENV') == 'development':
+            logging.info("Development mode detected - automatic result updates disabled")
+            return
+
+        scheduler = BackgroundScheduler()
+
+        # Check for updates every 2 hours
+        scheduler.add_job(
+            func=auto_update_results,
+            trigger=IntervalTrigger(hours=2),
+            id='auto_update_results',
+            name='Automatic volleyball result updates',
+            replace_existing=True
+        )
+
+        # Check for highlights every 4 hours (offset by 1 hour from result updates)
+        scheduler.add_job(
+            func=auto_detect_highlights,
+            trigger=IntervalTrigger(hours=4),
+            id='auto_detect_highlights',
+            name='Automatic volleyball highlight detection',
+            replace_existing=True
+        )
+
+        scheduler.start()
+        logging.info("Background scheduler started - automatic result updates (every 2 hours) and highlight detection (every 4 hours) enabled")
+
+        # Shut down the scheduler when exiting the app
+        atexit.register(lambda: scheduler.shutdown())
+
+    except Exception as e:
+        logging.error(f"Failed to initialize background scheduler: {e}")
+
+
 # Initialize database
 with app.app_context():
     try:
@@ -2783,6 +3113,19 @@ with app.app_context():
                     conn.execute(db.text('ALTER TABLE game ADD COLUMN serpapi_search_used BOOLEAN DEFAULT FALSE'))
                     conn.commit()
                 logging.info("serpapi_search_used column added successfully")
+
+        # Check if we need to create the game_highlight table
+        if 'game_highlight' not in existing_tables:
+            logging.info("Creating GameHighlight table...")
+            # The table will be created automatically by db.create_all() above
+            # But we log it for transparency
+            try:
+                # Verify the table was created
+                db.session.execute(db.text('SELECT 1 FROM game_highlight LIMIT 1'))
+                logging.info("GameHighlight table created successfully")
+            except Exception:
+                # Table doesn't exist yet, which is expected on first run
+                logging.info("GameHighlight table will be created by db.create_all()")
 
         # Initialize logging configuration
         try:
@@ -3219,6 +3562,214 @@ def trigger_auto_update():
         logging.error(f"Error triggering auto-update: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/admin/trigger-highlight-detection', methods=['POST'])
+@login_required
+@admin_required
+def trigger_highlight_detection():
+    """Manually trigger the automatic highlight detection process (for testing)"""
+    try:
+        # Run the highlight detection function manually
+        auto_detect_highlights()
+        return jsonify({'success': True, 'message': 'Highlight detection process triggered successfully'})
+    except Exception as e:
+        logging.error(f"Error triggering highlight detection: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/manage-highlights/<int:game_id>')
+@login_required
+@admin_required
+def manage_highlights(game_id):
+    """Manage highlights for a specific game"""
+    try:
+        game = Game.query.get_or_404(game_id)
+        highlights = GameHighlight.query.filter_by(game_id=game_id).order_by(
+            GameHighlight.is_featured.desc(),
+            GameHighlight.view_count.desc()
+        ).all()
+
+        return jsonify({
+            'success': True,
+            'game': {
+                'id': game.id,
+                'team1': game.team1,
+                'team2': game.team2,
+                'date': game.game_date.strftime('%Y-%m-%d %H:%M'),
+                'round': game.round_name
+            },
+            'highlights': [{
+                'id': h.id,
+                'title': h.title,
+                'youtube_url': h.youtube_url,
+                'channel_name': h.channel_name,
+                'duration': h.format_duration(),
+                'view_count': h.view_count,
+                'is_featured': h.is_featured,
+                'is_active': h.is_active,
+                'auto_detected': h.auto_detected
+            } for h in highlights]
+        })
+
+    except Exception as e:
+        logging.error(f"Error managing highlights for game {game_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/add-highlight', methods=['POST'])
+@login_required
+@admin_required
+def add_highlight():
+    """Manually add a highlight video"""
+    try:
+        data = request.get_json()
+        game_id = data.get('game_id')
+        youtube_url = data.get('youtube_url')
+        title = data.get('title', '')
+        description = data.get('description', '')
+
+        if not game_id or not youtube_url:
+            return jsonify({'success': False, 'error': 'Game ID and YouTube URL are required'})
+
+        game = Game.query.get(game_id)
+        if not game:
+            return jsonify({'success': False, 'error': 'Game not found'})
+
+        # Extract video ID from URL
+        video_id = None
+        if 'youtube.com/watch?v=' in youtube_url:
+            video_id = youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
+        elif 'youtu.be/' in youtube_url:
+            video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
+
+        if not video_id:
+            return jsonify({'success': False, 'error': 'Invalid YouTube URL'})
+
+        # Check if highlight already exists
+        existing = GameHighlight.query.filter_by(youtube_video_id=video_id).first()
+        if existing:
+            return jsonify({'success': False, 'error': 'This video is already added as a highlight'})
+
+        # Try to get video details from YouTube API
+        try:
+            from youtube_service import youtube_service
+            video_details = youtube_service.get_video_details(video_id)
+
+            if video_details:
+                title = video_details['title']
+                description = video_details['description'][:500]
+                thumbnail_url = video_details['thumbnail_url']
+                duration = video_details.get('duration', '')
+                channel_name = video_details['channel_name']
+                view_count = video_details.get('view_count', 0)
+                upload_date = video_details['upload_date']
+            else:
+                # Use provided data if API fails
+                thumbnail_url = f'https://img.youtube.com/vi/{video_id}/mqdefault.jpg'
+                duration = ''
+                channel_name = ''
+                view_count = 0
+                upload_date = datetime.utcnow()
+
+        except Exception as e:
+            logging.warning(f"Failed to get video details from YouTube API: {e}")
+            # Use basic data
+            thumbnail_url = f'https://img.youtube.com/vi/{video_id}/mqdefault.jpg'
+            duration = ''
+            channel_name = ''
+            view_count = 0
+            upload_date = datetime.utcnow()
+
+        # Create new highlight
+        highlight = GameHighlight(
+            game_id=game_id,
+            youtube_url=youtube_url,
+            youtube_video_id=video_id,
+            title=title[:200] if title else 'Manual Highlight',
+            description=description[:500] if description else '',
+            thumbnail_url=thumbnail_url,
+            duration=duration,
+            channel_name=channel_name,
+            view_count=view_count,
+            upload_date=upload_date,
+            auto_detected=False,
+            video_type='highlight'
+        )
+
+        db.session.add(highlight)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Highlight added successfully',
+            'highlight': {
+                'id': highlight.id,
+                'title': highlight.title,
+                'youtube_url': highlight.youtube_url
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"Error adding highlight: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/toggle-highlight-featured/<int:highlight_id>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_highlight_featured(highlight_id):
+    """Toggle the featured status of a highlight"""
+    try:
+        highlight = GameHighlight.query.get_or_404(highlight_id)
+        highlight.is_featured = not highlight.is_featured
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Highlight {"featured" if highlight.is_featured else "unfeatured"} successfully',
+            'is_featured': highlight.is_featured
+        })
+
+    except Exception as e:
+        logging.error(f"Error toggling highlight featured status: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/toggle-highlight-active/<int:highlight_id>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_highlight_active(highlight_id):
+    """Toggle the active status of a highlight"""
+    try:
+        highlight = GameHighlight.query.get_or_404(highlight_id)
+        highlight.is_active = not highlight.is_active
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Highlight {"activated" if highlight.is_active else "deactivated"} successfully',
+            'is_active': highlight.is_active
+        })
+
+    except Exception as e:
+        logging.error(f"Error toggling highlight active status: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/delete-highlight/<int:highlight_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_highlight(highlight_id):
+    """Delete a highlight"""
+    try:
+        highlight = GameHighlight.query.get_or_404(highlight_id)
+        db.session.delete(highlight)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Highlight deleted successfully'
+        })
+
+    except Exception as e:
+        logging.error(f"Error deleting highlight: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 # Logging Configuration Routes
 @app.route('/admin/logging-config', methods=['GET', 'POST'])
 @login_required
@@ -3258,97 +3809,6 @@ def logging_config():
             return jsonify({'success': False, 'error': str(e)})
 
 
-# Background scheduler for automatic result updates
-def auto_update_results():
-    """Background task to automatically update game results"""
-    with app.app_context():
-        try:
-            current_time = get_riga_time()
-            three_hours_ago = current_time - timedelta(hours=3)
-
-            # Find games that started 3+ hours ago, not finished, not attempted
-            pending_games = Game.query.filter(
-                Game.is_finished == False,
-                Game.auto_update_attempted == False,
-                Game.game_date <= three_hours_ago
-            ).limit(5).all()  # Limit to 5 games per run to avoid API limits
-
-            if pending_games:
-                logging.info(f"Auto-update: Found {len(pending_games)} games to check")
-
-                # Check SerpAPI usage before proceeding
-                from result_fetcher import get_monthly_usage_info
-                usage_info = get_monthly_usage_info()
-
-                if not usage_info.get('can_search', False):
-                    logging.warning(f"Auto-update: Monthly SerpAPI limit reached ({usage_info.get('searches_used', 0)}/{usage_info.get('monthly_limit', 0)})")
-                    return
-
-                # Try to update each game
-                successful_updates = 0
-                for game in pending_games:
-                    try:
-                        from result_fetcher import update_game_with_result
-                        success = update_game_with_result(game.id, force=False)
-
-                        if success:
-                            successful_updates += 1
-                            logging.info(f"Auto-update: Successfully updated {game.team1} vs {game.team2}")
-                        else:
-                            logging.info(f"Auto-update: No result found for {game.team1} vs {game.team2}")
-
-                    except Exception as e:
-                        logging.error(f"Auto-update: Error updating game {game.id}: {e}")
-                        continue
-
-                if successful_updates > 0:
-                    logging.info(f"Auto-update: Successfully updated {successful_updates}/{len(pending_games)} games")
-            else:
-                logging.debug("Auto-update: No games pending auto-update")
-
-        except Exception as e:
-            logging.error(f"Auto-update: Error in background task: {e}")
-
-
-# Initialize scheduler if not in debug mode and SERPAPI_API_KEY is available
-def init_scheduler():
-    """Initialize the background scheduler for automatic result updates"""
-    try:
-        # Only run scheduler if SerpAPI is available
-        serpapi_key = os.environ.get('SERPAPI_API_KEY')
-        if not serpapi_key:
-            logging.info("SerpAPI key not found - automatic result updates disabled")
-            return
-
-        # Check if scheduler should run (avoid in development/debug mode)
-        if os.environ.get('FLASK_ENV') == 'development':
-            logging.info("Development mode detected - automatic result updates disabled")
-            return
-
-        scheduler = BackgroundScheduler()
-
-        # Check for updates every 2 hours
-        scheduler.add_job(
-            func=auto_update_results,
-            trigger=IntervalTrigger(hours=2),
-            id='auto_update_results',
-            name='Automatic volleyball result updates',
-            replace_existing=True
-        )
-
-        scheduler.start()
-        logging.info("Background scheduler started - automatic result updates enabled (every 2 hours)")
-
-        # Shut down the scheduler when exiting the app
-        atexit.register(lambda: scheduler.shutdown())
-
-    except Exception as e:
-        logging.error(f"Failed to initialize background scheduler: {e}")
-
-
 if __name__ == '__main__':
-    # Initialize scheduler for automatic updates
-    init_scheduler()
-
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)

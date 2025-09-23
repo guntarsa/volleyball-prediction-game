@@ -12,3 +12,4 @@ pytz==2024.1
 google-generativeai
 serpapi
 APScheduler==3.10.4
+google-api-python-client==2.147.0
