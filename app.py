@@ -3226,7 +3226,7 @@ with app.app_context():
             logging.getLogger().setLevel(logging.INFO)
 
         # Initialize background scheduler for automatic result updates
-        init_scheduler()
+        # init_scheduler()  # Disabled - run updates manually from admin page
 
     except Exception as e:
         logging.error(f"Database initialization error: {e}")
