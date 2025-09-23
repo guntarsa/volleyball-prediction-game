@@ -315,6 +315,78 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
     </div>
 </div>
 
+<!-- Highlights Management Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-play-circle"></i>
+                    YouTube Highlights Management
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>YouTube Integration:</strong> Automatically detect and manage volleyball highlights from YouTube.
+                </div>
+
+                <!-- Manual Highlight Detection -->
+                <div class="mb-4">
+                    <h6>Manual Controls:</h6>
+                    <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="triggerHighlightDetection()">
+                        <i class="fas fa-search"></i> Trigger Highlight Detection
+                    </button>
+                    <small class="text-muted">Manually run the automatic highlight detection process</small>
+                </div>
+
+                <!-- Highlights Status -->
+                <div id="highlightStatus" class="mt-3" style="display: none;"></div>
+
+                <!-- Game Highlights Management -->
+                <div class="mt-4">
+                    <h6>Manage Game Highlights:</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="highlightGameSelect" class="form-label">Select Game:</label>
+                            <select class="form-select" id="highlightGameSelect" onchange="loadGameHighlights()">
+                                <option value="">Select a game...</option>
+                                {% for game in games %}
+                                <option value="{{ game.id }}"
+                                        data-team1="{{ game.team1 }}"
+                                        data-team2="{{ game.team2 }}"
+                                        data-finished="{{ 'true' if game.is_finished else 'false' }}">
+                                    {{ game.team1 }} vs {{ game.team2 }} - {{ game.game_date.strftime('%m/%d %H:%M') }}
+                                    {% if game.is_finished %}(Finished){% else %}(Upcoming){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="newHighlightUrl" class="form-label">Add YouTube URL:</label>
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="newHighlightUrl"
+                                       placeholder="https://www.youtube.com/watch?v=..."
+                                       disabled>
+                                <button type="button" class="btn btn-success" id="addHighlightBtn"
+                                        onclick="addHighlight()" disabled>
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Highlights List -->
+                <div id="gameHighlights" class="mt-4" style="display: none;">
+                    <h6>Current Highlights:</h6>
+                    <div id="highlightsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Logging Configuration Section -->
 <div class="row mt-4">
     <div class="col-md-6">
@@ -1874,5 +1946,246 @@ document.addEventListener('DOMContentLoaded', function() {
         loggingConfigForm.addEventListener('submit', handleLoggingConfigSubmit);
     }
 });
+
+// Highlights Management Functions
+function triggerHighlightDetection() {
+    showHighlightStatus('info', '<i class="fas fa-search fa-spin"></i> Triggering highlight detection...');
+
+    fetch('/admin/trigger-highlight-detection', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showHighlightStatus('success', `<i class="fas fa-check"></i> ${data.message}`);
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error triggering highlight detection');
+    });
+}
+
+function loadGameHighlights() {
+    const gameSelect = document.getElementById('highlightGameSelect');
+    const gameId = gameSelect.value;
+    const urlInput = document.getElementById('newHighlightUrl');
+    const addBtn = document.getElementById('addHighlightBtn');
+    const highlightsDiv = document.getElementById('gameHighlights');
+
+    if (!gameId) {
+        highlightsDiv.style.display = 'none';
+        urlInput.disabled = true;
+        addBtn.disabled = true;
+        return;
+    }
+
+    // Enable add controls
+    urlInput.disabled = false;
+    addBtn.disabled = false;
+
+    showHighlightStatus('info', '<i class="fas fa-spinner fa-spin"></i> Loading highlights...');
+
+    fetch(`/admin/manage-highlights/${gameId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayGameHighlights(data.game, data.highlights);
+            highlightsDiv.style.display = 'block';
+            showHighlightStatus('success', `<i class="fas fa-check"></i> Loaded ${data.highlights.length} highlights for ${data.game.team1} vs ${data.game.team2}`);
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error loading highlights');
+    });
+}
+
+function displayGameHighlights(game, highlights) {
+    const listDiv = document.getElementById('highlightsList');
+
+    if (highlights.length === 0) {
+        listDiv.innerHTML = '<div class="alert alert-warning"><i class="fas fa-info-circle"></i> No highlights found for this game.</div>';
+        return;
+    }
+
+    let html = '<div class="row">';
+
+    highlights.forEach(highlight => {
+        html += `
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${highlight.title}</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-warning btn-sm" onclick="toggleFeatured(${highlight.id}, ${highlight.is_featured})" title="Toggle Featured">
+                                <i class="fas fa-star${highlight.is_featured ? '' : '-o'}"></i>
+                            </button>
+                            <button class="btn btn-outline-${highlight.is_active ? 'success' : 'secondary'} btn-sm" onclick="toggleActive(${highlight.id}, ${highlight.is_active})" title="Toggle Active">
+                                <i class="fas fa-eye${highlight.is_active ? '' : '-slash'}"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteHighlight(${highlight.id})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="small text-muted mb-2">
+                        <i class="fab fa-youtube text-danger"></i> ${highlight.channel_name || 'Unknown Channel'}
+                        ${highlight.duration ? `| <i class="fas fa-clock"></i> ${highlight.duration}` : ''}
+                        ${highlight.view_count ? `| <i class="fas fa-eye"></i> ${highlight.view_count.toLocaleString()} views` : ''}
+                    </div>
+
+                    <div class="mb-2">
+                        ${highlight.is_featured ? '<span class="badge bg-warning text-dark">Featured</span>' : ''}
+                        ${highlight.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}
+                        ${highlight.auto_detected ? '<span class="badge bg-info">Auto-detected</span>' : '<span class="badge bg-primary">Manual</span>'}
+                    </div>
+
+                    <a href="${highlight.youtube_url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-external-link-alt"></i> View on YouTube
+                    </a>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    html += '</div>';
+    listDiv.innerHTML = html;
+}
+
+function addHighlight() {
+    const gameSelect = document.getElementById('highlightGameSelect');
+    const urlInput = document.getElementById('newHighlightUrl');
+    const gameId = gameSelect.value;
+    const youtubeUrl = urlInput.value.trim();
+
+    if (!gameId || !youtubeUrl) {
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Please select a game and enter a YouTube URL');
+        return;
+    }
+
+    showHighlightStatus('info', '<i class="fas fa-spinner fa-spin"></i> Adding highlight...');
+
+    fetch('/admin/add-highlight', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            game_id: parseInt(gameId),
+            youtube_url: youtubeUrl
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showHighlightStatus('success', `<i class="fas fa-check"></i> ${data.message}`);
+            urlInput.value = '';
+            loadGameHighlights(); // Refresh the highlights list
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error adding highlight');
+    });
+}
+
+function toggleFeatured(highlightId, currentState) {
+    fetch(`/admin/toggle-highlight-featured/${highlightId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showHighlightStatus('success', `<i class="fas fa-check"></i> ${data.message}`);
+            loadGameHighlights(); // Refresh the highlights list
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error updating highlight');
+    });
+}
+
+function toggleActive(highlightId, currentState) {
+    fetch(`/admin/toggle-highlight-active/${highlightId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showHighlightStatus('success', `<i class="fas fa-check"></i> ${data.message}`);
+            loadGameHighlights(); // Refresh the highlights list
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error updating highlight');
+    });
+}
+
+function deleteHighlight(highlightId) {
+    if (!confirm('Are you sure you want to delete this highlight?')) {
+        return;
+    }
+
+    fetch(`/admin/delete-highlight/${highlightId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showHighlightStatus('success', `<i class="fas fa-check"></i> ${data.message}`);
+            loadGameHighlights(); // Refresh the highlights list
+        } else {
+            showHighlightStatus('error', `<i class="fas fa-exclamation-triangle"></i> ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showHighlightStatus('error', '<i class="fas fa-exclamation-triangle"></i> Error deleting highlight');
+    });
+}
+
+function showHighlightStatus(type, message) {
+    const statusDiv = document.getElementById('highlightStatus');
+    const alertClass = type === 'success' ? 'alert-success' :
+                      type === 'error' ? 'alert-danger' : 'alert-info';
+
+    statusDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+    statusDiv.style.display = 'block';
+
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
 </script>
 {% endblock %}
