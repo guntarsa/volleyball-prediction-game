@@ -480,6 +480,61 @@ class GameHighlight(db.Model):
         return self.duration
 
 
+class FeaturedVideo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    youtube_url = db.Column(db.String(500), nullable=False)
+    youtube_video_id = db.Column(db.String(20), nullable=False, unique=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    thumbnail_url = db.Column(db.String(500), nullable=True)
+    duration = db.Column(db.String(20), nullable=True)
+    channel_name = db.Column(db.String(100), nullable=True)
+    view_count = db.Column(db.Integer, nullable=True)
+    upload_date = db.Column(db.DateTime, nullable=True)
+    display_order = db.Column(db.Integer, default=0)  # For custom ordering
+    is_active = db.Column(db.Boolean, default=True)
+    auto_detected = db.Column(db.Boolean, default=False)  # True if found by automatic detection
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def get_embed_url(self):
+        """Convert YouTube URL to embeddable format"""
+        if 'youtube.com/watch?v=' in self.youtube_url:
+            return self.youtube_url.replace('youtube.com/watch?v=', 'youtube.com/embed/')
+        elif 'youtu.be/' in self.youtube_url:
+            video_id = self.youtube_url.split('youtu.be/')[-1].split('?')[0]
+            return f'https://www.youtube.com/embed/{video_id}'
+        return self.youtube_url
+
+    def get_video_id(self):
+        """Extract video ID from YouTube URL"""
+        if 'youtube.com/watch?v=' in self.youtube_url:
+            return self.youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
+        elif 'youtu.be/' in self.youtube_url:
+            return self.youtube_url.split('youtu.be/')[-1].split('?')[0]
+        return self.youtube_video_id
+
+    def format_duration(self):
+        """Format duration for display"""
+        if not self.duration:
+            return "Unknown"
+        # Convert PT5M30S format to 5:30
+        if self.duration.startswith('PT'):
+            import re
+            match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', self.duration)
+            if match:
+                hours, minutes, seconds = match.groups()
+                parts = []
+                if hours:
+                    parts.append(f"{hours}h")
+                if minutes:
+                    parts.append(f"{minutes}m")
+                if seconds:
+                    parts.append(f"{seconds}s")
+                return " ".join(parts) if parts else "0s"
+        return self.duration
+
+
 # Performance Analysis Functions
 def calculate_performance_hash(user_id):
     """Calculate a hash based on user's current performance metrics"""
@@ -1699,17 +1754,28 @@ def highlights():
                 'highlights': existing_highlights[:5]  # Limit to 5 highlights per game
             })
 
-        # Get some featured/trending videos from volleyball channels
-        featured_videos = []
-        try:
-            from youtube_service import get_featured_channels_latest
-            featured_videos = get_featured_channels_latest()[:6]  # Get 6 featured videos
-        except Exception as e:
-            logging.error(f"Error getting featured videos: {e}")
+        # Get featured videos from database (admin-managed)
+        featured_videos = FeaturedVideo.query.filter_by(is_active=True).order_by(
+            FeaturedVideo.display_order.asc(),
+            FeaturedVideo.created_at.desc()
+        ).limit(6).all()
+
+        # Convert to format expected by template
+        featured_videos_data = []
+        for video in featured_videos:
+            featured_videos_data.append({
+                'title': video.title,
+                'youtube_url': video.youtube_url,
+                'thumbnail_url': video.thumbnail_url,
+                'channel_name': video.channel_name,
+                'upload_date': video.upload_date,
+                'view_count': video.view_count,
+                'duration': video.format_duration()
+            })
 
         return render_template('highlights.html',
                              games_with_highlights=games_with_highlights,
-                             featured_videos=featured_videos)
+                             featured_videos=featured_videos_data)
 
     except Exception as e:
         logging.error(f"Error loading highlights page: {e}")
@@ -2878,16 +2944,24 @@ def auto_detect_highlights():
                 logging.debug("YouTube API key not available - skipping highlight detection")
                 return
 
-            # Get recent completed games that don't have highlights yet
-            cutoff_date = datetime.now() - timedelta(days=7)  # Last 7 days
-            games_without_highlights = db.session.query(Game).filter(
+            # Get the most recent completed games that don't have highlights yet
+            # Focus on the latest games that would appear on the highlights page
+            all_recent_games = db.session.query(Game).filter(
                 Game.is_finished == True,
                 Game.team1_score.isnot(None),
-                Game.team2_score.isnot(None),
-                Game.game_date >= cutoff_date
-            ).outerjoin(GameHighlight).filter(
-                GameHighlight.id.is_(None)
-            ).limit(3).all()  # Process max 3 games per run
+                Game.team2_score.isnot(None)
+            ).order_by(Game.game_date.desc()).limit(5).all()  # Get latest 5 completed games
+
+            # Filter to only those without highlights
+            games_without_highlights = []
+            for game in all_recent_games:
+                existing_highlights = db.session.query(GameHighlight).filter_by(game_id=game.id).count()
+                if existing_highlights == 0:
+                    games_without_highlights.append(game)
+
+                # Limit to max 2 games per run (since we show 2 on highlights page)
+                if len(games_without_highlights) >= 2:
+                    break
 
             if not games_without_highlights:
                 logging.debug("Auto-highlight: No games without highlights found")
@@ -3126,6 +3200,19 @@ with app.app_context():
             except Exception:
                 # Table doesn't exist yet, which is expected on first run
                 logging.info("GameHighlight table will be created by db.create_all()")
+
+        # Check if we need to create the featured_video table
+        if 'featured_video' not in existing_tables:
+            logging.info("Creating FeaturedVideo table...")
+            # The table will be created automatically by db.create_all() above
+            # But we log it for transparency
+            try:
+                # Verify the table was created
+                db.session.execute(db.text('SELECT 1 FROM featured_video LIMIT 1'))
+                logging.info("FeaturedVideo table created successfully")
+            except Exception:
+                # Table doesn't exist yet, which is expected on first run
+                logging.info("FeaturedVideo table will be created by db.create_all()")
 
         # Initialize logging configuration
         try:
@@ -3768,6 +3855,197 @@ def delete_highlight(highlight_id):
 
     except Exception as e:
         logging.error(f"Error deleting highlight: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/featured-videos', methods=['GET'])
+@login_required
+@admin_required
+def get_featured_videos():
+    """Get all featured videos for admin management"""
+    try:
+        featured_videos = FeaturedVideo.query.order_by(
+            FeaturedVideo.display_order.asc(),
+            FeaturedVideo.created_at.desc()
+        ).all()
+
+        return jsonify({
+            'success': True,
+            'videos': [{
+                'id': video.id,
+                'title': video.title,
+                'youtube_url': video.youtube_url,
+                'channel_name': video.channel_name,
+                'duration': video.format_duration(),
+                'view_count': video.view_count,
+                'display_order': video.display_order,
+                'is_active': video.is_active,
+                'auto_detected': video.auto_detected,
+                'thumbnail_url': video.thumbnail_url
+            } for video in featured_videos]
+        })
+
+    except Exception as e:
+        logging.error(f"Error getting featured videos: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/add-featured-video', methods=['POST'])
+@login_required
+@admin_required
+def add_featured_video():
+    """Manually add a featured video"""
+    try:
+        data = request.get_json()
+        youtube_url = data.get('youtube_url')
+        title = data.get('title', '')
+        description = data.get('description', '')
+        display_order = data.get('display_order', 0)
+
+        if not youtube_url:
+            return jsonify({'success': False, 'error': 'YouTube URL is required'})
+
+        # Extract video ID from URL
+        video_id = None
+        if 'youtube.com/watch?v=' in youtube_url:
+            video_id = youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
+        elif 'youtu.be/' in youtube_url:
+            video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
+
+        if not video_id:
+            return jsonify({'success': False, 'error': 'Invalid YouTube URL'})
+
+        # Check if video already exists
+        existing = FeaturedVideo.query.filter_by(youtube_video_id=video_id).first()
+        if existing:
+            return jsonify({'success': False, 'error': 'This video is already added as a featured video'})
+
+        # Try to get video details from YouTube API
+        try:
+            from youtube_service import youtube_service
+            video_details = youtube_service.get_video_details(video_id)
+
+            if video_details:
+                title = video_details['title']
+                description = video_details['description'][:500]
+                thumbnail_url = video_details['thumbnail_url']
+                duration = video_details.get('duration', '')
+                channel_name = video_details['channel_name']
+                view_count = video_details.get('view_count', 0)
+                upload_date = video_details['upload_date']
+            else:
+                # Use provided data if API fails
+                thumbnail_url = f'https://img.youtube.com/vi/{video_id}/mqdefault.jpg'
+                duration = ''
+                channel_name = ''
+                view_count = 0
+                upload_date = datetime.utcnow()
+
+        except Exception as e:
+            logging.warning(f"Failed to get video details from YouTube API: {e}")
+            # Use basic data
+            thumbnail_url = f'https://img.youtube.com/vi/{video_id}/mqdefault.jpg'
+            duration = ''
+            channel_name = ''
+            view_count = 0
+            upload_date = datetime.utcnow()
+
+        # Create new featured video
+        featured_video = FeaturedVideo(
+            youtube_url=youtube_url,
+            youtube_video_id=video_id,
+            title=title[:200] if title else 'Featured Video',
+            description=description[:500] if description else '',
+            thumbnail_url=thumbnail_url,
+            duration=duration,
+            channel_name=channel_name,
+            view_count=view_count,
+            upload_date=upload_date,
+            display_order=display_order,
+            auto_detected=False
+        )
+
+        db.session.add(featured_video)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Featured video added successfully',
+            'video': {
+                'id': featured_video.id,
+                'title': featured_video.title,
+                'youtube_url': featured_video.youtube_url
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"Error adding featured video: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/update-featured-video-order', methods=['POST'])
+@login_required
+@admin_required
+def update_featured_video_order():
+    """Update display order of featured videos"""
+    try:
+        data = request.get_json()
+        video_orders = data.get('video_orders', [])
+
+        for item in video_orders:
+            video_id = item.get('id')
+            display_order = item.get('display_order', 0)
+
+            video = FeaturedVideo.query.get(video_id)
+            if video:
+                video.display_order = display_order
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Featured video order updated successfully'
+        })
+
+    except Exception as e:
+        logging.error(f"Error updating featured video order: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/toggle-featured-video-active/<int:video_id>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_featured_video_active(video_id):
+    """Toggle the active status of a featured video"""
+    try:
+        video = FeaturedVideo.query.get_or_404(video_id)
+        video.is_active = not video.is_active
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Featured video {"activated" if video.is_active else "deactivated"} successfully',
+            'is_active': video.is_active
+        })
+
+    except Exception as e:
+        logging.error(f"Error toggling featured video active status: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/delete-featured-video/<int:video_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_featured_video(video_id):
+    """Delete a featured video"""
+    try:
+        video = FeaturedVideo.query.get_or_404(video_id)
+        db.session.delete(video)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Featured video deleted successfully'
+        })
+
+    except Exception as e:
+        logging.error(f"Error deleting featured video: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 # Logging Configuration Routes
