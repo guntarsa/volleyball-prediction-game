@@ -593,6 +593,7 @@ function renderChart(data) {
                             label: function(context) {
                                 const gameIndex = context.dataIndex;
                                 const datasetData = context.dataset;
+                                const isLastGame = gameIndex === data.games.length - 1;
 
                                 // Try to get points from the dataset or the original player data
                                 let points = 0;
@@ -606,7 +607,20 @@ function renderChart(data) {
                                     }
                                 }
 
-                                return `${context.dataset.label}: ${points}`;
+                                // Find player data to check if tournament is finalized
+                                const player = data.players.find(p => p.name === context.dataset.label);
+                                const tournamentPoints = player ? player.tournament_points : 0;
+                                const tournamentFinalized = player ? player.tournament_finalized : false;
+
+                                let label = `${context.dataset.label}: ${points} pts`;
+
+                                // Show breakdown if tournament is finalized and this is the last game
+                                if (tournamentFinalized && isLastGame && tournamentPoints > 0) {
+                                    const matchPoints = points - tournamentPoints;
+                                    label += ` (${matchPoints} match + ${tournamentPoints} tournament)`;
+                                }
+
+                                return label;
                             }
                         }
                     }

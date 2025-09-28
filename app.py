@@ -1611,6 +1611,10 @@ def get_race_chart_data():
             logging.error(f"Error sorting users: {e}")
             users_sorted = users
 
+        # Check if tournament results are finalized
+        tournament_config = TournamentConfig.query.first()
+        tournament_finalized = tournament_config and tournament_config.are_results_available()
+
         # First, calculate cumulative points for all users for each game
         users_cumulative_data = []
         for user in users_sorted:
@@ -1620,20 +1624,26 @@ def get_race_chart_data():
                 points_data = []
 
                 # Calculate cumulative points for each game
-                for game in games:
+                for game_index, game in enumerate(games):
                     # Find user's prediction for this game
                     prediction = next((p for p in user.predictions if p.game_id == game.id), None)
 
                     if prediction and prediction.points is not None:
                         cumulative_points += prediction.points
 
-                    points_data.append(cumulative_points)
+                    # Add tournament points at the end if tournament is finalized
+                    current_total = cumulative_points
+                    if tournament_finalized and game_index == len(games) - 1:
+                        current_total += tournament_points
+
+                    points_data.append(current_total)
 
                 users_cumulative_data.append({
                     'user': user,
                     'points_data': points_data,
                     'tournament_points': tournament_points,
-                    'total_score': user.get_total_score()
+                    'total_score': user.get_total_score(),
+                    'tournament_finalized': tournament_finalized
                 })
 
             except Exception as e:
@@ -1664,7 +1674,8 @@ def get_race_chart_data():
                     'points_data': user_data['points_data'],  # Keep points for tooltips
                     'tournament_points': user_data['tournament_points'],
                     'total_score': user_data['total_score'],
-                    'final_position': i + 1
+                    'final_position': i + 1,
+                    'tournament_finalized': user_data['tournament_finalized']
                 }
 
                 chart_data['players'].append(player_data)
