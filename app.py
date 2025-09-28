@@ -1302,30 +1302,33 @@ def calculate_tournament_points(prediction, tournament_config):
     """Calculate points for tournament predictions"""
     if not tournament_config.are_results_available():
         return 0
-    
+
     points = 0
-    
-    # Check first place (winner) - 30 points
-    if prediction.first_place == tournament_config.first_place_result:
-        points += 30
-    
+
     # Get user's predictions as a list
     user_predictions = [prediction.first_place, prediction.second_place, prediction.third_place]
-    
+
+    # Check if user mentioned actual 1st place anywhere in their predictions - 15 points
+    if tournament_config.first_place_result in user_predictions:
+        points += 15
+        # Additional 15 points if predicted in exact 1st place (total 30 points)
+        if prediction.first_place == tournament_config.first_place_result:
+            points += 15
+
     # Check if user mentioned actual 2nd place anywhere in their predictions - 15 points
     if tournament_config.second_place_result in user_predictions:
         points += 15
         # Additional 5 points if predicted in exact 2nd place
         if prediction.second_place == tournament_config.second_place_result:
             points += 5
-    
-    # Check if user mentioned actual 3rd place anywhere in their predictions - 15 points  
+
+    # Check if user mentioned actual 3rd place anywhere in their predictions - 15 points
     if tournament_config.third_place_result in user_predictions:
         points += 15
         # Additional 5 points if predicted in exact 3rd place
         if prediction.third_place == tournament_config.third_place_result:
             points += 5
-    
+
     return points
 
 # Routes
