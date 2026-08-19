@@ -1,0 +1,61 @@
+team1,team2,date,time,round
+Türkiye,Latvia,2026-08-21,19:00,Pool A
+Germany,Slovenia,2026-08-22,16:00,Pool A
+Hungary,Poland,2026-08-22,19:00,Pool A
+Latvia,Germany,2026-08-23,16:00,Pool A
+Slovenia,Türkiye,2026-08-23,19:00,Pool A
+Poland,Latvia,2026-08-24,16:00,Pool A
+Türkiye,Hungary,2026-08-24,19:00,Pool A
+Hungary,Germany,2026-08-25,16:00,Pool A
+Poland,Slovenia,2026-08-25,19:00,Pool A
+Slovenia,Latvia,2026-08-26,16:00,Pool A
+Germany,Türkiye,2026-08-26,19:00,Pool A
+Poland,Germany,2026-08-27,16:00,Pool A
+Latvia,Hungary,2026-08-27,19:00,Pool A
+Slovenia,Hungary,2026-08-28,16:00,Pool A
+Türkiye,Poland,2026-08-28,19:00,Pool A
+Austria,Serbia,2026-08-21,15:00,Pool B
+Bulgaria,Ukraine,2026-08-21,18:00,Pool B
+Czech Republic,Greece,2026-08-21,21:00,Pool B
+Ukraine,Greece,2026-08-22,17:00,Pool B
+Czech Republic,Austria,2026-08-22,20:00,Pool B
+Greece,Bulgaria,2026-08-23,17:00,Pool B
+Czech Republic,Serbia,2026-08-23,20:00,Pool B
+Ukraine,Austria,2026-08-24,17:00,Pool B
+Serbia,Bulgaria,2026-08-24,20:00,Pool B
+Greece,Austria,2026-08-25,17:00,Pool B
+Czech Republic,Ukraine,2026-08-25,20:00,Pool B
+Austria,Bulgaria,2026-08-26,17:00,Pool B
+Serbia,Greece,2026-08-26,20:00,Pool B
+Ukraine,Serbia,2026-08-27,17:00,Pool B
+Czech Republic,Bulgaria,2026-08-27,20:00,Pool B
+Azerbaijan,Portugal,2026-08-21,18:00,Pool C
+Belgium,Spain,2026-08-22,14:30,Pool C
+Romania,Netherlands,2026-08-22,17:30,Pool C
+Portugal,Belgium,2026-08-23,14:30,Pool C
+Spain,Azerbaijan,2026-08-23,17:30,Pool C
+Netherlands,Portugal,2026-08-24,14:30,Pool C
+Azerbaijan,Romania,2026-08-24,17:30,Pool C
+Romania,Belgium,2026-08-25,14:30,Pool C
+Netherlands,Spain,2026-08-25,17:30,Pool C
+Spain,Portugal,2026-08-26,14:30,Pool C
+Belgium,Azerbaijan,2026-08-26,17:30,Pool C
+Netherlands,Belgium,2026-08-27,14:30,Pool C
+Portugal,Romania,2026-08-27,17:30,Pool C
+Spain,Romania,2026-08-28,14:30,Pool C
+Azerbaijan,Netherlands,2026-08-28,17:30,Pool C
+France,Slovakia,2026-08-21,14:00,Pool D
+Croatia,Italy,2026-08-21,17:00,Pool D
+Sweden,Montenegro,2026-08-21,20:00,Pool D
+Italy,Montenegro,2026-08-22,16:00,Pool D
+Slovakia,Sweden,2026-08-22,19:00,Pool D
+France,Croatia,2026-08-23,16:00,Pool D
+Sweden,Italy,2026-08-23,19:00,Pool D
+Croatia,Slovakia,2026-08-24,17:00,Pool D
+Montenegro,France,2026-08-24,20:00,Pool D
+Italy,Slovakia,2026-08-25,17:00,Pool D
+Sweden,Croatia,2026-08-25,20:00,Pool D
+France,Italy,2026-08-26,17:00,Pool D
+Slovakia,Montenegro,2026-08-26,20:00,Pool D
+Croatia,Montenegro,2026-08-27,17:00,Pool D
+Sweden,France,2026-08-27,20:00,Pool D

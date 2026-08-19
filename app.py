@@ -52,41 +52,56 @@ def to_riga_time(dt):
 
 app = Flask(__name__)
 
-# Team name to country code mapping for flags - 2025 Men's World Championship
+# Team name to country code mapping for flags - EuroVolley Women 2026
 TEAM_COUNTRY_MAPPING = {
+    # Pool A - Istanbul
+    'Türkiye': 'tr',
+    'Turkey': 'tr',
+    'Latvia': 'lv',
+    'Poland': 'pl',
+    'Germany': 'de',
+    'Slovenia': 'si',
+    'Hungary': 'hu',
+    # Pool B - Brno
+    'Czech Republic': 'cz',
+    'Czechia': 'cz',
+    'Austria': 'at',
+    'Serbia': 'rs',
+    'Ukraine': 'ua',
+    'Bulgaria': 'bg',
+    'Greece': 'gr',
+    # Pool C - Baku
+    'Azerbaijan': 'az',
+    'Portugal': 'pt',
+    'Netherlands': 'nl',
+    'Belgium': 'be',
+    'Romania': 'ro',
+    'Spain': 'es',
+    # Pool D - Gothenburg
+    'Sweden': 'se',
+    'Montenegro': 'me',
+    'Italy': 'it',
+    'France': 'fr',
+    'Slovakia': 'sk',
+    'Croatia': 'hr',
+    # Extra mappings kept for historical data
     'Algeria': 'dz',
     'Argentina': 'ar',
-    'Belgium': 'be',
     'Brazil': 'br',
-    'Bulgaria': 'bg',
     'Canada': 'ca',
     'Chile': 'cl',
     'China': 'cn',
     'Colombia': 'co',
     'Cuba': 'cu',
-    'Czechia': 'cz',
-    'Czech Republic': 'cz',
     'Egypt': 'eg',
     'Finland': 'fi',
-    'France': 'fr',
-    'Germany': 'de',
     'Iran': 'ir',
-    'Italy': 'it',
     'Japan': 'jp',
     'Korea': 'kr',
     'Libya': 'ly',
-    'Netherlands': 'nl',
     'Philippines': 'ph',
-    'Poland': 'pl',
-    'Portugal': 'pt',
     'Qatar': 'qa',
-    'Romania': 'ro',
-    'Serbia': 'rs',
-    'Slovenia': 'si',
     'Tunisia': 'tn',
-    'Turkey': 'tr',
-    'Türkiye': 'tr',
-    'Ukraine': 'ua',
     'USA': 'us'
 }
 
