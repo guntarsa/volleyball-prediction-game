@@ -643,6 +643,7 @@ Dominican Republic,do
                                 <th>Role</th>
                                 <th>Joined</th>
                                 <th>Password Status</th>
+                                <th>Predictions</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -667,7 +668,17 @@ Dominican Republic,do
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% set pred_count = user.predictions | length %}
+                                    {% if pred_count == 0 %}
+                                        <span class="badge bg-secondary">0</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">{{ pred_count }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if not user.is_admin %}
+                                        {% set pred_count = user.predictions | length %}
+                                        <div class="d-flex gap-1 flex-wrap">
                                         {% if user.password_reset_required %}
                                             <span class="text-muted">
                                                 <i class="fas fa-clock"></i> Awaiting password change
@@ -677,6 +688,12 @@ Dominican Republic,do
                                                 <i class="fas fa-key"></i> Reset Password
                                             </button>
                                         {% endif %}
+                                        {% if pred_count == 0 %}
+                                            <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser({{ user.id }}, '{{ user.name }}')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        {% endif %}
+                                        </div>
                                     {% else %}
                                         <span class="text-muted">Admin user</span>
                                     {% endif %}
@@ -1155,6 +1172,42 @@ Dominican Republic,do
     </div>
 </div>
 
+<!-- Delete User Confirmation Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="deleteUserForm">
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+                    <p>Are you sure you want to permanently delete this user?</p>
+                    <div class="bg-light p-3 rounded">
+                        <strong id="deleteUserInfo"></strong>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Only users with no predictions can be deleted.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Delete User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Team Delete Confirmation Modal -->
 <div class="modal fade" id="deleteTeamModal" tabindex="-1">
     <div class="modal-dialog">
@@ -1360,6 +1413,12 @@ function confirmPasswordReset(userId, userName) {
     document.getElementById('resetUserInfo').textContent = userName;
     
     new bootstrap.Modal(document.getElementById('passwordResetModal')).show();
+}
+
+function confirmDeleteUser(userId, userName) {
+    document.getElementById('deleteUserForm').action = `/admin/delete-user/${userId}`;
+    document.getElementById('deleteUserInfo').textContent = userName;
+    new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
 }
 
 function confirmTeamDelete(teamId, teamName) {

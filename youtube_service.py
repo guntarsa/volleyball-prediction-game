@@ -116,22 +116,22 @@ class YouTubeService:
 
         queries = [
             # Specific match queries
-            f'"{team1}" vs "{team2}" volleyball highlights {date_str}',
-            f'{team1} {team2} volleyball World Championship 2025',
-            f'{team1} vs {team2} FIVB Men volleyball highlights',
+            f'"{team1}" vs "{team2}" women volleyball highlights {date_str}',
+            f'{team1} {team2} volleyball EuroVolley Women {date_str}',
+            f'{team1} vs {team2} CEV Women volleyball highlights',
 
             # General tournament queries
-            f'FIVB Men World Championship 2025 {team1} highlights',
-            f'FIVB Men World Championship 2025 {team2} highlights',
-            f'volleyball World Championship Philippines 2025 {team1}',
+            f'CEV EuroVolley Women {date_str} {team1} highlights',
+            f'CEV EuroVolley Women {date_str} {team2} highlights',
+            f'EuroVolley Women {date_str} {team1}',
 
             # Channel-specific searches
-            f'{team1} vs {team2} Volleyball World',
-            f'{team1} {team2} volleyball highlights FIVB',
+            f'{team1} vs {team2} women volleyball',
+            f'{team1} {team2} volleyball highlights CEV',
 
             # Fallback queries
-            f'{team1} volleyball highlights 2025',
-            f'{team2} volleyball highlights 2025'
+            f'{team1} women volleyball highlights {date_str}',
+            f'{team2} women volleyball highlights {date_str}'
         ]
 
         return queries
@@ -237,9 +237,15 @@ class YouTubeService:
             channel_lower = video['channel_name'].lower()
 
             # Check for volleyball keywords
-            volleyball_keywords = ['volleyball', 'fivb', 'world championship', 'highlights']
+            volleyball_keywords = ['volleyball', 'fivb', 'cev', 'eurovolley', 'world championship', 'highlights']
             has_volleyball = any(keyword in title_lower or keyword in description_lower
                                for keyword in volleyball_keywords)
+
+            # Skip videos that are clearly men's matches
+            men_keywords = [' men', "men's", 'men volleyball', 'vnl men', 'fivb men']
+            is_mens_game = any(kw in title_lower for kw in men_keywords)
+            if is_mens_game:
+                continue
 
             # Check for team names
             team1_lower = team1.lower()
@@ -248,7 +254,7 @@ class YouTubeService:
                         team2_lower in title_lower or team2_lower in description_lower)
 
             # Check for trusted channels
-            trusted_channels = ['volleyball world', 'fivb', 'olympics', 'world championship']
+            trusted_channels = ['volleyball world', 'fivb', 'cev', 'eurovolley', 'olympics', 'world championship']
             is_trusted_channel = any(channel in channel_lower for channel in trusted_channels)
 
             # Calculate relevance score
@@ -263,6 +269,8 @@ class YouTubeService:
                 relevance_score += 1
             if 'vs' in title_lower and has_teams:
                 relevance_score += 1
+            if 'women' in title_lower or 'eurovolley' in title_lower or 'cev' in title_lower:
+                relevance_score += 2
 
             video['relevance_score'] = relevance_score
 

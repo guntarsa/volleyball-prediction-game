@@ -2229,6 +2229,37 @@ def reset_user_password(user_id):
     flash(f'Password reset for {user.name}. Temporary password is "pass123" — they will be prompted to change it on next login.', 'success')
     return redirect(url_for('admin'))
 
+@app.route('/admin/delete-user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('admin'))
+
+    if user.is_admin:
+        flash('Cannot delete admin users', 'error')
+        return redirect(url_for('admin'))
+
+    if user.predictions:
+        flash(f'Cannot delete {user.name}: they have {len(user.predictions)} prediction(s).', 'error')
+        return redirect(url_for('admin'))
+
+    try:
+        if user.tournament_prediction:
+            db.session.delete(user.tournament_prediction)
+        for msg in user.messages:
+            db.session.delete(msg)
+        db.session.delete(user)
+        db.session.commit()
+        flash(f'User {user.name} has been deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting user: {str(e)}', 'error')
+
+    return redirect(url_for('admin'))
+
 @app.route('/admin/tournament-config', methods=['POST'])
 @login_required
 @admin_required
