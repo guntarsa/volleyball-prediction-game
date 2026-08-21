@@ -2221,11 +2221,12 @@ def reset_user_password(user_id):
         flash('Cannot reset admin password', 'error')
         return redirect(url_for('admin'))
     
-    # Set password reset flag
+    # Reset password to default and require change on next login
+    user.set_password('pass123')
     user.password_reset_required = True
     db.session.commit()
-    
-    flash(f'Password reset initiated for {user.name}. They will be prompted to change their password on next login.', 'success')
+
+    flash(f'Password reset for {user.name}. Temporary password is "pass123" — they will be prompted to change it on next login.', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/tournament-config', methods=['POST'])
