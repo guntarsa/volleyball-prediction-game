@@ -938,7 +938,7 @@ Dominican Republic,do
                                             <i class="fas fa-edit"></i> Edit Result
                                         </button>
                                         {% endif %}
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}')">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}', {{ game.predictions | length }})">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -1040,7 +1040,7 @@ Dominican Republic,do
                                     <i class="fas fa-edit"></i> Edit Result
                                 </button>
                                 {% endif %}
-                                <button class="btn btn-outline-danger btn-sm" onclick="confirmDelete({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}')">
+                                <button class="btn btn-outline-danger btn-sm" onclick="confirmDelete({{ game.id }}, '{{ game.team1 }}', '{{ game.team2 }}', {{ game.predictions | length }})">
                                     <i class="fas fa-trash"></i> Delete
                                 </button>
                             </div>
@@ -1114,7 +1114,7 @@ Dominican Republic,do
             </div>
             <form method="POST" id="deleteGameForm">
                 <div class="modal-body">
-                    <div class="alert alert-warning">
+                    <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle"></i>
                         <strong>Warning:</strong> This action cannot be undone!
                     </div>
@@ -1122,11 +1122,9 @@ Dominican Republic,do
                     <div class="bg-light p-3 rounded">
                         <strong id="deleteGameInfo"></strong>
                     </div>
-                    <div class="mt-3">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle"></i>
-                            Note: Games with existing predictions cannot be deleted.
-                        </small>
+                    <div id="deletePredictionWarning" class="alert alert-warning mt-3 mb-0" style="display:none;">
+                        <i class="fas fa-users"></i>
+                        <span id="deletePredictionCount"></span> prediction(s) made for this game will also be deleted.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1275,10 +1273,18 @@ function showUpdateModal(gameId, team1, team2, team1Score = '', team2Score = '')
     new bootstrap.Modal(document.getElementById('updateResultModal')).show();
 }
 
-function confirmDelete(gameId, team1, team2) {
+function confirmDelete(gameId, team1, team2, predCount) {
     document.getElementById('deleteGameForm').action = `/delete_game/${gameId}`;
     document.getElementById('deleteGameInfo').textContent = `${team1} vs ${team2}`;
-    
+
+    const warning = document.getElementById('deletePredictionWarning');
+    if (predCount > 0) {
+        document.getElementById('deletePredictionCount').textContent = predCount;
+        warning.style.display = 'block';
+    } else {
+        warning.style.display = 'none';
+    }
+
     new bootstrap.Modal(document.getElementById('deleteGameModal')).show();
 }
 
