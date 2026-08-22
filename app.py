@@ -459,7 +459,10 @@ class GameHighlight(db.Model):
 
     def get_embed_url(self):
         """Convert YouTube URL to embeddable format"""
-        if 'youtube.com/watch?v=' in self.youtube_url:
+        if 'youtube.com/shorts/' in self.youtube_url:
+            video_id = self.youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+            return f'https://www.youtube.com/embed/{video_id}'
+        elif 'youtube.com/watch?v=' in self.youtube_url:
             return self.youtube_url.replace('youtube.com/watch?v=', 'youtube.com/embed/')
         elif 'youtu.be/' in self.youtube_url:
             video_id = self.youtube_url.split('youtu.be/')[-1].split('?')[0]
@@ -468,7 +471,9 @@ class GameHighlight(db.Model):
 
     def get_video_id(self):
         """Extract video ID from YouTube URL"""
-        if 'youtube.com/watch?v=' in self.youtube_url:
+        if 'youtube.com/shorts/' in self.youtube_url:
+            return self.youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+        elif 'youtube.com/watch?v=' in self.youtube_url:
             return self.youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
         elif 'youtu.be/' in self.youtube_url:
             return self.youtube_url.split('youtu.be/')[-1].split('?')[0]
@@ -514,7 +519,10 @@ class FeaturedVideo(db.Model):
 
     def get_embed_url(self):
         """Convert YouTube URL to embeddable format"""
-        if 'youtube.com/watch?v=' in self.youtube_url:
+        if 'youtube.com/shorts/' in self.youtube_url:
+            video_id = self.youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+            return f'https://www.youtube.com/embed/{video_id}'
+        elif 'youtube.com/watch?v=' in self.youtube_url:
             return self.youtube_url.replace('youtube.com/watch?v=', 'youtube.com/embed/')
         elif 'youtu.be/' in self.youtube_url:
             video_id = self.youtube_url.split('youtu.be/')[-1].split('?')[0]
@@ -523,7 +531,9 @@ class FeaturedVideo(db.Model):
 
     def get_video_id(self):
         """Extract video ID from YouTube URL"""
-        if 'youtube.com/watch?v=' in self.youtube_url:
+        if 'youtube.com/shorts/' in self.youtube_url:
+            return self.youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+        elif 'youtube.com/watch?v=' in self.youtube_url:
             return self.youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
         elif 'youtu.be/' in self.youtube_url:
             return self.youtube_url.split('youtu.be/')[-1].split('?')[0]
@@ -3856,15 +3866,17 @@ def add_highlight():
         if not game:
             return jsonify({'success': False, 'error': 'Game not found'})
 
-        # Extract video ID from URL
+        # Extract video ID from URL (supports watch, shorts, and youtu.be)
         video_id = None
-        if 'youtube.com/watch?v=' in youtube_url:
+        if 'youtube.com/shorts/' in youtube_url:
+            video_id = youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+        elif 'youtube.com/watch?v=' in youtube_url:
             video_id = youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
         elif 'youtu.be/' in youtube_url:
             video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
 
         if not video_id:
-            return jsonify({'success': False, 'error': 'Invalid YouTube URL'})
+            return jsonify({'success': False, 'error': 'Invalid YouTube URL (supported: /watch?v=, /shorts/, youtu.be/)'})
 
         # Check if highlight already exists
         existing = GameHighlight.query.filter_by(youtube_video_id=video_id).first()
@@ -4040,15 +4052,17 @@ def add_featured_video():
         if not youtube_url:
             return jsonify({'success': False, 'error': 'YouTube URL is required'})
 
-        # Extract video ID from URL
+        # Extract video ID from URL (supports watch, shorts, and youtu.be)
         video_id = None
-        if 'youtube.com/watch?v=' in youtube_url:
+        if 'youtube.com/shorts/' in youtube_url:
+            video_id = youtube_url.split('youtube.com/shorts/')[-1].split('?')[0]
+        elif 'youtube.com/watch?v=' in youtube_url:
             video_id = youtube_url.split('youtube.com/watch?v=')[-1].split('&')[0]
         elif 'youtu.be/' in youtube_url:
             video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
 
         if not video_id:
-            return jsonify({'success': False, 'error': 'Invalid YouTube URL'})
+            return jsonify({'success': False, 'error': 'Invalid YouTube URL (supported: /watch?v=, /shorts/, youtu.be/)'})
 
         # Check if video already exists
         existing = FeaturedVideo.query.filter_by(youtube_video_id=video_id).first()

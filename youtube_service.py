@@ -64,7 +64,7 @@ class YouTubeService:
 
             for query in search_queries[:3]:  # Limit to first 3 queries to save quota
                 try:
-                    videos = self._search_videos(query, max_results=5)
+                    videos = self._search_videos(query, max_results=5, duration='medium')
                     all_videos.extend(videos)
 
                     if len(all_videos) >= max_results:
@@ -73,6 +73,17 @@ class YouTubeService:
                 except Exception as e:
                     logging.error(f"Error searching with query '{query}': {e}")
                     continue
+
+            # Also search for shorts using the top query
+            try:
+                shorts = self._search_videos(
+                    f'{team1} {team2} EuroVolley Women 2026 #shorts',
+                    max_results=5,
+                    duration='short'
+                )
+                all_videos.extend(shorts)
+            except Exception as e:
+                logging.error(f"Error searching shorts: {e}")
 
             # Remove duplicates and filter relevant videos
             unique_videos = self._deduplicate_videos(all_videos)
@@ -120,11 +131,10 @@ class YouTubeService:
 
         return queries
 
-    def _search_videos(self, query: str, max_results: int = 5) -> List[Dict]:
+    def _search_videos(self, query: str, max_results: int = 5, duration: str = 'medium') -> List[Dict]:
         """Search for videos with a specific query"""
         try:
-            # Calculate date range (1 week before to 2 days after game)
-            search_date = datetime.now() - timedelta(days=30)  # Search last 30 days
+            search_date = datetime.now() - timedelta(days=30)
             published_after = search_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             request = self.service.search().list(
@@ -136,7 +146,7 @@ class YouTubeService:
                 publishedAfter=published_after,
                 regionCode='US',
                 relevanceLanguage='en',
-                videoDuration='medium',  # 4-20 minutes, good for highlights
+                videoDuration=duration,
                 videoDefinition='any'
             )
 
