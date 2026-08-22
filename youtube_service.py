@@ -220,46 +220,52 @@ class YouTubeService:
             description_lower = video['description'].lower()
             channel_lower = video['channel_name'].lower()
 
-            # Must be about CEV EuroVolley 2026 — hard requirement
-            is_eurovolley = ('eurovolley' in title_lower or 'cev' in title_lower or
+            team1_lower = team1.lower()
+            team2_lower = team2.lower()
+
+            # Both teams must appear in the title — description has too much noise
+            # (group standings, next match previews, etc. can mention unrelated teams)
+            has_team1_in_title = team1_lower in title_lower
+            has_team2_in_title = team2_lower in title_lower
+            has_both_teams_in_title = has_team1_in_title and has_team2_in_title
+
+            if not (has_team1_in_title or has_team2_in_title):
+                continue
+
+            # Must be about CEV EuroVolley 2026 specifically — not other CEV competitions
+            is_eurovolley = ('eurovolley' in title_lower or
+                             ('cev' in title_lower and '2026' in title_lower) or
                              'eurovolley' in channel_lower or 'european volleyball' in channel_lower)
             if not is_eurovolley:
                 continue
 
-            # Skip videos that are clearly men's matches
+            # Skip men's matches
             men_keywords = [' men', "men's", 'men volleyball', 'vnl men', 'fivb men']
-            is_mens_game = any(kw in title_lower for kw in men_keywords)
-            if is_mens_game:
+            if any(kw in title_lower for kw in men_keywords):
                 continue
-
-            # Check for team names
-            team1_lower = team1.lower()
-            team2_lower = team2.lower()
-            has_teams = (team1_lower in title_lower or team1_lower in description_lower or
-                        team2_lower in title_lower or team2_lower in description_lower)
 
             # Check for trusted channels
             trusted_channels = ['cev', 'eurovolley', 'european volleyball']
-            is_trusted_channel = any(channel in channel_lower for channel in trusted_channels)
+            is_trusted_channel = any(ch in channel_lower for ch in trusted_channels)
 
-            # Calculate relevance score
             relevance_score = 0
-            if has_teams:
-                relevance_score += 3
+            if has_both_teams_in_title:
+                relevance_score += 5
+            elif has_team1_in_title or has_team2_in_title:
+                relevance_score += 2
             if is_trusted_channel:
-                relevance_score += 3
+                relevance_score += 2
+            if 'eurovolley' in title_lower:
+                relevance_score += 2
+            if '2026' in title_lower:
+                relevance_score += 1
             if 'highlights' in title_lower:
                 relevance_score += 1
-            if 'vs' in title_lower and has_teams:
-                relevance_score += 1
             if 'women' in title_lower:
-                relevance_score += 1
-            if '2026' in title_lower:
                 relevance_score += 1
 
             video['relevance_score'] = relevance_score
 
-            # Require a meaningful relevance score
             if relevance_score >= 4:
                 relevant_videos.append(video)
 
