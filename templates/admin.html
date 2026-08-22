@@ -334,11 +334,15 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                 <!-- Manual Highlight Detection -->
                 <div class="mb-4">
                     <h6>Manual Controls:</h6>
-                    <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="triggerHighlightDetection()">
-                        <i class="fas fa-search"></i> Trigger Highlight Detection
+                    <button type="button" class="btn btn-primary btn-sm me-2" onclick="searchRecentHighlights()">
+                        <i class="fas fa-search"></i> Search Today & Yesterday Highlights
                     </button>
-                    <small class="text-muted">Manually run the automatic highlight detection process</small>
+                    <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="triggerHighlightDetection()">
+                        <i class="fas fa-robot"></i> Run Auto-Detection
+                    </button>
+                    <small class="text-muted d-block mt-1">Search appends new highlights for all finished games from the last 2 days</small>
                 </div>
+                <div id="recentHighlightResults" class="mt-2" style="display: none;"></div>
 
                 <!-- Highlights Status -->
                 <div id="highlightStatus" class="mt-3" style="display: none;"></div>
@@ -2067,6 +2071,43 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Highlights Management Functions
+function searchRecentHighlights() {
+    const resultsDiv = document.getElementById('recentHighlightResults');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Searching highlights for today & yesterday games...</div>';
+
+    fetch('/admin/search-recent-highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let rows = '';
+            if (data.results && data.results.length > 0) {
+                rows = data.results.map(r =>
+                    `<tr>
+                        <td>${r.game}</td>
+                        <td><span class="badge bg-success">${r.added} added</span></td>
+                        <td><span class="badge bg-secondary">${r.skipped} skipped</span></td>
+                        ${r.error ? `<td class="text-danger small">${r.error}</td>` : '<td></td>'}
+                    </tr>`
+                ).join('');
+            }
+            resultsDiv.innerHTML = `
+                <div class="alert alert-success"><i class="fas fa-check"></i> ${data.message}</div>
+                ${rows ? `<table class="table table-sm table-bordered"><thead><tr><th>Game</th><th>Added</th><th>Skipped</th><th>Error</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+            `;
+        } else {
+            resultsDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        resultsDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Request failed</div>';
+    });
+}
+
 function triggerHighlightDetection() {
     showHighlightStatus('info', '<i class="fas fa-search fa-spin"></i> Triggering highlight detection...');
 

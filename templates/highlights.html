@@ -16,6 +16,64 @@
         </div>
     </div>
 
+    <!-- Featured Videos Section -->
+    {% if featured_videos %}
+    <div class="card mb-5">
+        <div class="card-header bg-success text-white">
+            <h3 class="mb-0">
+                <i class="fas fa-fire"></i>
+                Featured Volleyball Content
+            </h3>
+            <small>Latest highlights from top volleyball channels</small>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for video in featured_videos %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="video-thumbnail-container position-relative">
+                            {% if video.thumbnail_url %}
+                                <img src="{{ video.thumbnail_url }}"
+                                     class="card-img-top"
+                                     alt="{{ video.title }}"
+                                     style="height: 180px; object-fit: cover;">
+                            {% else %}
+                                <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center"
+                                     style="height: 180px;">
+                                    <i class="fas fa-play-circle fa-3x text-white"></i>
+                                </div>
+                            {% endif %}
+                            <div class="play-overlay position-absolute w-100 h-100 d-flex align-items-center justify-content-center"
+                                 style="top: 0; left: 0; background: rgba(0,0,0,0.3);">
+                                <a href="{{ video.youtube_url }}"
+                                   target="_blank"
+                                   class="btn btn-danger btn-lg rounded-circle p-3">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{ video.title }}</h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="fab fa-youtube text-danger"></i>
+                                    {{ video.channel_name }}
+                                </small>
+                                {% if video.upload_date %}
+                                <small class="text-muted">
+                                    {{ video.upload_date.strftime('%b %d') }}
+                                </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if games_with_highlights %}
         {% for game_data in games_with_highlights %}
         <div class="card mb-5">
@@ -132,70 +190,6 @@
             </div>
         </div>
         {% endfor %}
-    {% endif %}
-
-    <!-- Featured Videos Section -->
-    {% if featured_videos %}
-    <div class="card mt-5">
-        <div class="card-header bg-success text-white">
-            <h3 class="mb-0">
-                <i class="fas fa-fire"></i>
-                Featured Volleyball Content
-            </h3>
-            <small>Latest highlights from top volleyball channels</small>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                {% for video in featured_videos %}
-                <div class="col-lg-6 col-xl-4 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <!-- Video Thumbnail -->
-                        <div class="video-thumbnail-container position-relative">
-                            {% if video.thumbnail_url %}
-                                <img src="{{ video.thumbnail_url }}"
-                                     class="card-img-top"
-                                     alt="{{ video.title }}"
-                                     style="height: 180px; object-fit: cover;">
-                            {% else %}
-                                <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center"
-                                     style="height: 180px;">
-                                    <i class="fas fa-play-circle fa-3x text-white"></i>
-                                </div>
-                            {% endif %}
-
-                            <!-- Play Button Overlay -->
-                            <div class="play-overlay position-absolute w-100 h-100 d-flex align-items-center justify-content-center"
-                                 style="top: 0; left: 0; background: rgba(0,0,0,0.3);">
-                                <a href="{{ video.youtube_url }}"
-                                   target="_blank"
-                                   class="btn btn-danger btn-lg rounded-circle p-3">
-                                    <i class="fas fa-play"></i>
-                                </a>
-                            </div>
-                        </div>
-
-                        <div class="card-body">
-                            <h6 class="card-title">{{ video.title }}</h6>
-
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">
-                                    <i class="fab fa-youtube text-danger"></i>
-                                    {{ video.channel_name }}
-                                </small>
-
-                                {% if video.upload_date %}
-                                <small class="text-muted">
-                                    {{ video.upload_date.strftime('%b %d') }}
-                                </small>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
     {% endif %}
 
     <!-- No Content Message -->

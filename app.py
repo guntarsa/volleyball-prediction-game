@@ -1726,12 +1726,17 @@ def get_user_message():
 def highlights():
     """Display volleyball highlights from the latest games"""
     try:
-        # Get the 2 most recent completed games
+        # Get finished games from yesterday and today (Riga time)
+        now_riga = get_riga_time()
+        today_start = now_riga.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
+
         recent_games = Game.query.filter(
             Game.is_finished == True,
             Game.team1_score.isnot(None),
-            Game.team2_score.isnot(None)
-        ).order_by(Game.game_date.desc()).limit(2).all()
+            Game.team2_score.isnot(None),
+            Game.game_date >= yesterday_start
+        ).order_by(Game.game_date.desc()).all()
 
         games_with_highlights = []
 
@@ -3721,6 +3726,77 @@ def trigger_highlight_detection():
         return jsonify({'success': True, 'message': 'Highlight detection process triggered successfully'})
     except Exception as e:
         logging.error(f"Error triggering highlight detection: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/search-recent-highlights', methods=['POST'])
+@login_required
+@admin_required
+def search_recent_highlights():
+    """Search and append highlights for all finished games from yesterday and today"""
+    try:
+        from youtube_service import search_game_highlights
+
+        now_riga = get_riga_time()
+        today_start = now_riga.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
+
+        recent_games = Game.query.filter(
+            Game.is_finished == True,
+            Game.team1_score.isnot(None),
+            Game.team2_score.isnot(None),
+            Game.game_date >= yesterday_start
+        ).order_by(Game.game_date.desc()).all()
+
+        if not recent_games:
+            return jsonify({'success': True, 'message': 'No finished games from yesterday or today found', 'results': []})
+
+        results = []
+        for game in recent_games:
+            game_result = {'game': f'{game.team1} vs {game.team2}', 'added': 0, 'skipped': 0}
+            try:
+                videos = search_game_highlights(game.id)
+                for video in videos[:5]:
+                    existing = GameHighlight.query.filter_by(youtube_video_id=video['video_id']).first()
+                    if existing:
+                        game_result['skipped'] += 1
+                        continue
+                    try:
+                        highlight = GameHighlight(
+                            game_id=game.id,
+                            youtube_url=video['youtube_url'],
+                            youtube_video_id=video['video_id'],
+                            title=video['title'][:200],
+                            description=video['description'][:500] if video['description'] else '',
+                            thumbnail_url=video['thumbnail_url'],
+                            duration=video.get('duration', ''),
+                            channel_name=video['channel_name'],
+                            view_count=video.get('view_count', 0),
+                            upload_date=video['upload_date'],
+                            auto_detected=True,
+                            video_type='highlight'
+                        )
+                        db.session.add(highlight)
+                        game_result['added'] += 1
+                    except Exception as e:
+                        logging.error(f"Error saving highlight for game {game.id}: {e}")
+
+                db.session.commit()
+            except Exception as e:
+                logging.error(f"Error searching highlights for game {game.id}: {e}")
+                db.session.rollback()
+                game_result['error'] = str(e)
+
+            results.append(game_result)
+
+        total_added = sum(r['added'] for r in results)
+        return jsonify({
+            'success': True,
+            'message': f'Search complete. Added {total_added} new highlight(s) across {len(recent_games)} game(s).',
+            'results': results
+        })
+
+    except Exception as e:
+        logging.error(f"Error in search_recent_highlights: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/admin/manage-highlights/<int:game_id>')

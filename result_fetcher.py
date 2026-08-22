@@ -3,6 +3,7 @@ SerpApi integration for automatic volleyball result fetching
 """
 import os
 import re
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
@@ -64,7 +65,6 @@ class VolleyballResultFetcher:
                 response = self.client.search({
                     'engine': 'google',
                     'q': query,
-                    'location': 'Philippines',  # Tournament location
                     'hl': 'en',
                     'gl': 'us'
                 })
@@ -88,24 +88,12 @@ class VolleyballResultFetcher:
     def _generate_search_queries(self, team1: str, team2: str, game_date: datetime) -> list:
         """Generate multiple search query variations"""
         date_str = game_date.strftime('%Y-%m-%d')
-        date_readable = game_date.strftime('%B %d, %Y')
 
         queries = [
-            # Specific tournament format
-            f'"FIVB Men\'s World Championship 2025" {team1} {team2} result',
-            f'"Men\'s World Championship 2025" {team1} vs {team2} volleyball',
-
-            # Date-specific searches
+            f'{team1} vs {team2} CEV EuroVolley Women 2026 result',
+            f'{team1} {team2} EuroVolley Women 2026 volleyball score',
             f'{team1} vs {team2} volleyball {date_str} result',
-            f'{team1} {team2} volleyball score {date_readable}',
-
-            # Location-specific
-            f'{team1} {team2} volleyball Philippines 2025 result',
-            f'{team1} vs {team2} volleyball world championship Philippines',
-
-            # General volleyball result search
-            f'{team1} vs {team2} volleyball result September 2025',
-            f'volleyball {team1} {team2} final score'
+            f'CEV EuroVolley Women 2026 {team1} {team2} score',
         ]
 
         return queries
@@ -156,20 +144,65 @@ class VolleyballResultFetcher:
         return None
 
     def _parse_organic_results(self, organic_results: list, team1: str, team2: str) -> Optional[Dict]:
-        """Parse organic search results for volleyball scores"""
-        for result in organic_results:
-            # Check title and snippet for volleyball scores
-            text_to_check = f"{result.get('title', '')} {result.get('snippet', '')}"
-            score = self._extract_score_from_text(text_to_check, team1, team2)
-            if score:
-                return score
+        """Parse organic search results using Gemini for reliable extraction"""
+        snippets = []
+        for r in organic_results[:5]:
+            title = r.get('title', '')
+            snippet = r.get('snippet', '')
+            if title or snippet:
+                snippets.append(f"{title}: {snippet}")
 
-        return None
+        if not snippets:
+            return None
+
+        return self._extract_score_with_gemini('\n'.join(snippets), team1, team2)
 
     def _parse_answer_box(self, answer_box: Dict, team1: str, team2: str) -> Optional[Dict]:
-        """Parse answer box for quick volleyball score results"""
-        text_to_check = f"{answer_box.get('title', '')} {answer_box.get('snippet', '')}"
-        return self._extract_score_from_text(text_to_check, team1, team2)
+        """Parse answer box using Gemini"""
+        text = f"{answer_box.get('title', '')} {answer_box.get('snippet', '')}"
+        return self._extract_score_with_gemini(text, team1, team2)
+
+    def _extract_score_with_gemini(self, text: str, team1: str, team2: str) -> Optional[Dict]:
+        """Use Gemini to extract volleyball set score from search result text"""
+        try:
+            import google.generativeai as genai
+            api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                return self._extract_score_from_text(text, team1, team2)
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+
+            prompt = f"""Extract the volleyball match set score for {team1} vs {team2} from the text below.
+
+Text:
+{text}
+
+Rules:
+- Return ONLY a JSON object: {{"team1_score": X, "team2_score": Y}} where X and Y are set counts (e.g. 3-1 means winner has 3 sets)
+- Valid volleyball scores: one team must have 3 sets, the other 0, 1, or 2
+- If no clear score is found, return: {{"team1_score": null, "team2_score": null}}
+- Do not guess. Only return a score if you are confident it refers to this specific match.
+
+JSON:"""
+
+            response = model.generate_content(prompt)
+            raw = response.text.strip()
+            # Strip markdown code fences if present
+            raw = re.sub(r'^```(?:json)?\s*', '', raw)
+            raw = re.sub(r'\s*```$', '', raw)
+            data = json.loads(raw)
+
+            s1, s2 = data.get('team1_score'), data.get('team2_score')
+            if s1 is not None and s2 is not None:
+                if self._is_valid_volleyball_score(int(s1), int(s2)):
+                    return {'team1_score': int(s1), 'team2_score': int(s2), 'source': 'gemini_parsed'}
+
+        except Exception as e:
+            logging.warning(f"Gemini score extraction failed, falling back to regex: {e}")
+            return self._extract_score_from_text(text, team1, team2)
+
+        return None
 
     def _extract_team_scores(self, teams_data: list, team1: str, team2: str) -> Optional[Dict]:
         """Extract scores from structured team data"""
