@@ -580,6 +580,23 @@ class GamePhoto(db.Model):
         return f'/static/uploads/highlights/{self.filename}'
 
 
+class FeaturedImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    caption = db.Column(db.String(500), nullable=True)
+    placement = db.Column(db.String(20), nullable=False)  # 'home' or 'highlights'
+    is_active = db.Column(db.Boolean, default=True)
+    display_order = db.Column(db.Integer, default=0)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+
+    @property
+    def url(self):
+        return f'/static/uploads/highlights/{self.filename}'
+
+
 # Performance Analysis Functions
 def calculate_performance_hash(user_id):
     """Calculate a hash based on user's current performance metrics"""
@@ -1382,7 +1399,8 @@ def calculate_tournament_points(prediction, tournament_config):
 # Routes
 @app.route('/')
 def index():
-    return render_template('index.html')
+    home_image = FeaturedImage.query.filter_by(placement='home', is_active=True).order_by(FeaturedImage.created_at.desc()).first()
+    return render_template('index.html', home_image=home_image)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1843,9 +1861,14 @@ def highlights():
                 'duration': video.format_duration()
             })
 
+        featured_images = FeaturedImage.query.filter_by(
+            placement='highlights', is_active=True
+        ).order_by(FeaturedImage.display_order.asc(), FeaturedImage.created_at.desc()).all()
+
         return render_template('highlights.html',
                              games_with_highlights=games_with_highlights,
-                             featured_videos=featured_videos_data)
+                             featured_videos=featured_videos_data,
+                             featured_images=featured_images)
 
     except Exception as e:
         logging.error(f"Error loading highlights page: {e}")
@@ -1906,6 +1929,69 @@ def delete_highlight_photo(photo_id):
     db.session.commit()
     flash('Photo deleted.', 'success')
     return redirect(url_for('highlights'))
+
+
+@app.route('/admin/featured-images/upload', methods=['POST'])
+@login_required
+@admin_required
+def upload_featured_image():
+    photo_file = request.files.get('photo')
+    caption = request.form.get('caption', '').strip()
+    placement = request.form.get('placement', 'highlights')
+    if placement not in ('home', 'highlights'):
+        placement = 'highlights'
+
+    if not photo_file or photo_file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(request.referrer or url_for('admin'))
+
+    ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else ''
+    if ext not in app.config['ALLOWED_PHOTO_EXTENSIONS']:
+        flash('Only JPG, PNG, GIF and WebP images are allowed.', 'error')
+        return redirect(request.referrer or url_for('admin'))
+
+    photo_file.seek(0, 2)
+    if photo_file.tell() > app.config['MAX_PHOTO_SIZE']:
+        flash('Image must be under 10 MB.', 'error')
+        return redirect(request.referrer or url_for('admin'))
+    photo_file.seek(0)
+
+    upload_dir = app.config['HIGHLIGHT_PHOTO_FOLDER']
+    os.makedirs(upload_dir, exist_ok=True)
+
+    import uuid
+    filename = f"featured_{placement}_{uuid.uuid4().hex}.{ext}"
+    photo_file.save(os.path.join(upload_dir, filename))
+
+    # For home placement keep only one active image
+    if placement == 'home':
+        FeaturedImage.query.filter_by(placement='home').delete()
+        db.session.commit()
+
+    img = FeaturedImage(
+        filename=filename,
+        caption=caption or None,
+        placement=placement,
+        uploaded_by=current_user.id
+    )
+    db.session.add(img)
+    db.session.commit()
+    flash('Image uploaded successfully.', 'success')
+    return redirect(request.referrer or url_for('admin'))
+
+
+@app.route('/admin/featured-images/delete/<int:image_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_featured_image(image_id):
+    img = FeaturedImage.query.get_or_404(image_id)
+    filepath = os.path.join(app.config['HIGHLIGHT_PHOTO_FOLDER'], img.filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    db.session.delete(img)
+    db.session.commit()
+    flash('Image deleted.', 'success')
+    return redirect(request.referrer or url_for('admin'))
 
 
 # Removed add_user route - users now register themselves
@@ -2003,15 +2089,18 @@ def admin():
     
     # Get recalculation config
     recalculation_config = RecalculationConfig.get_current_config()
-    
-    return render_template('admin.html', 
-                         games=games, 
-                         users=users, 
+
+    featured_images = FeaturedImage.query.order_by(FeaturedImage.created_at.desc()).all()
+
+    return render_template('admin.html',
+                         games=games,
+                         users=users,
                          tournament_config=tournament_config,
                          tournament_predictions=tournament_predictions,
                          tournament_teams=tournament_teams,
                          teams=teams,
-                         recalculation_config=recalculation_config)
+                         recalculation_config=recalculation_config,
+                         featured_images=featured_images)
 
 @app.route('/upload_games', methods=['POST'])
 @login_required
