@@ -168,6 +168,68 @@ app.config['MAX_PHOTO_SIZE'] = 10 * 1024 * 1024  # 10 MB
 app.config['WTF_CSRF_ENABLED'] = True
 
 db = SQLAlchemy(app)
+
+# Cloudinary setup — used for persistent image storage on Render
+try:
+    import cloudinary
+    import cloudinary.uploader
+    CLOUDINARY_ENABLED = bool(
+        os.environ.get('CLOUDINARY_CLOUD_NAME') and
+        os.environ.get('CLOUDINARY_API_KEY') and
+        os.environ.get('CLOUDINARY_API_SECRET')
+    )
+    if CLOUDINARY_ENABLED:
+        cloudinary.config(
+            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+            api_key=os.environ.get('CLOUDINARY_API_KEY'),
+            api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+            secure=True
+        )
+        logging.info("Cloudinary configured for image storage")
+except ImportError:
+    CLOUDINARY_ENABLED = False
+
+
+def _cloudinary_public_id(url):
+    """Extract Cloudinary public_id from a secure URL for deletion."""
+    try:
+        after_upload = url.split('/upload/', 1)[1]
+        # Strip optional version prefix (v1234567890/)
+        if after_upload.startswith('v') and '/' in after_upload:
+            after_upload = after_upload.split('/', 1)[1]
+        return after_upload.rsplit('.', 1)[0]
+    except Exception:
+        return None
+
+
+def upload_image(file_obj, folder='volleyball/highlights'):
+    """Upload image to Cloudinary (production) or local disk (dev). Returns filename value to store in DB."""
+    if CLOUDINARY_ENABLED:
+        result = cloudinary.uploader.upload(file_obj, folder=folder, resource_type='image')
+        return result['secure_url']
+    # Local fallback
+    import uuid
+    ext = file_obj.filename.rsplit('.', 1)[-1].lower() if '.' in file_obj.filename else 'jpg'
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    upload_dir = app.config['HIGHLIGHT_PHOTO_FOLDER']
+    os.makedirs(upload_dir, exist_ok=True)
+    file_obj.save(os.path.join(upload_dir, filename))
+    return filename
+
+
+def delete_image(filename_or_url):
+    """Delete image from Cloudinary or local disk."""
+    if filename_or_url and filename_or_url.startswith('http') and CLOUDINARY_ENABLED:
+        try:
+            public_id = _cloudinary_public_id(filename_or_url)
+            if public_id:
+                cloudinary.uploader.destroy(public_id)
+        except Exception as e:
+            logging.error(f"Cloudinary delete error: {e}")
+    elif filename_or_url:
+        filepath = os.path.join(app.config['HIGHLIGHT_PHOTO_FOLDER'], filename_or_url)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -577,6 +639,8 @@ class GamePhoto(db.Model):
 
     @property
     def url(self):
+        if self.filename.startswith('http'):
+            return self.filename
         return f'/static/uploads/highlights/{self.filename}'
 
 
@@ -594,6 +658,8 @@ class FeaturedImage(db.Model):
 
     @property
     def url(self):
+        if self.filename.startswith('http'):
+            return self.filename
         return f'/static/uploads/highlights/{self.filename}'
 
 
@@ -1898,16 +1964,11 @@ def upload_highlight_photo(game_id):
         return redirect(url_for('highlights'))
     photo_file.seek(0)
 
-    upload_dir = app.config['HIGHLIGHT_PHOTO_FOLDER']
-    os.makedirs(upload_dir, exist_ok=True)
-
-    import uuid
-    filename = f"{game_id}_{uuid.uuid4().hex}.{ext}"
-    photo_file.save(os.path.join(upload_dir, filename))
+    stored = upload_image(photo_file, folder='volleyball/highlights')
 
     photo = GamePhoto(
         game_id=game_id,
-        filename=filename,
+        filename=stored,
         caption=caption or None,
         uploaded_by=current_user.id
     )
@@ -1922,9 +1983,7 @@ def upload_highlight_photo(game_id):
 @admin_required
 def delete_highlight_photo(photo_id):
     photo = GamePhoto.query.get_or_404(photo_id)
-    filepath = os.path.join(app.config['HIGHLIGHT_PHOTO_FOLDER'], photo.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    delete_image(photo.filename)
     db.session.delete(photo)
     db.session.commit()
     flash('Photo deleted.', 'success')
@@ -1956,20 +2015,17 @@ def upload_featured_image():
         return redirect(request.referrer or url_for('admin'))
     photo_file.seek(0)
 
-    upload_dir = app.config['HIGHLIGHT_PHOTO_FOLDER']
-    os.makedirs(upload_dir, exist_ok=True)
-
-    import uuid
-    filename = f"featured_{placement}_{uuid.uuid4().hex}.{ext}"
-    photo_file.save(os.path.join(upload_dir, filename))
-
-    # For home placement keep only one active image
+    # For home placement delete old image first
     if placement == 'home':
+        for old in FeaturedImage.query.filter_by(placement='home').all():
+            delete_image(old.filename)
         FeaturedImage.query.filter_by(placement='home').delete()
         db.session.commit()
 
+    stored = upload_image(photo_file, folder=f'volleyball/{placement}')
+
     img = FeaturedImage(
-        filename=filename,
+        filename=stored,
         caption=caption or None,
         placement=placement,
         uploaded_by=current_user.id
@@ -1985,9 +2041,7 @@ def upload_featured_image():
 @admin_required
 def delete_featured_image(image_id):
     img = FeaturedImage.query.get_or_404(image_id)
-    filepath = os.path.join(app.config['HIGHLIGHT_PHOTO_FOLDER'], img.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    delete_image(img.filename)
     db.session.delete(img)
     db.session.commit()
     flash('Image deleted.', 'success')
