@@ -30,11 +30,12 @@
                 {% for img in featured_images %}
                 <div class="col-6 col-md-4 col-lg-3 mb-3">
                     <div class="card h-100 shadow-sm photo-card">
-                        <a href="{{ img.url }}" target="_blank">
-                            <img src="{{ img.url }}"
-                                 class="card-img-top"
-                                 alt="{{ img.caption or 'Featured photo' }}"
-                                 style="height: 180px; object-fit: cover;">
+                        <a href="#" class="lightbox-trigger" data-src="{{ img.url }}" data-caption="{{ img.caption or '' }}">
+                            <div class="photo-thumb-wrap">
+                                <img src="{{ img.url }}"
+                                     class="photo-thumb"
+                                     alt="{{ img.caption or 'Featured photo' }}">
+                            </div>
                         </a>
                         {% if img.caption %}
                         <div class="card-body p-2">
@@ -143,11 +144,12 @@
                     {% for photo in game_data.photos %}
                     <div class="col-6 col-md-4 col-lg-3 mb-3">
                         <div class="card h-100 shadow-sm photo-card">
-                            <a href="{{ photo.url }}" target="_blank">
-                                <img src="{{ photo.url }}"
-                                     class="card-img-top"
-                                     alt="{{ photo.caption or 'Match photo' }}"
-                                     style="height: 160px; object-fit: cover;">
+                            <a href="#" class="lightbox-trigger" data-src="{{ photo.url }}" data-caption="{{ photo.caption or '' }}">
+                                <div class="photo-thumb-wrap">
+                                    <img src="{{ photo.url }}"
+                                         class="photo-thumb"
+                                         alt="{{ photo.caption or 'Match photo' }}">
+                                </div>
                             </a>
                             {% if photo.caption %}
                             <div class="card-body p-2">
@@ -267,7 +269,21 @@
     {% endif %}
 </div>
 
-<!-- Custom CSS for video overlays -->
+<!-- Lightbox Modal -->
+<div class="modal fade" id="lightboxModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content bg-dark border-0">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-2">
+                <img id="lightboxImg" src="" alt="" class="img-fluid rounded" style="max-height: 85vh; width: auto; max-width: 100%;">
+                <p id="lightboxCaption" class="text-white-50 mt-2 mb-0 small"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .video-thumbnail-container {
     overflow: hidden;
@@ -307,12 +323,46 @@
     transition: transform 0.2s ease;
 }
 
-.photo-card img {
+.photo-thumb-wrap {
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 180px;
+    overflow: hidden;
+    border-radius: calc(.25rem - 1px) calc(.25rem - 1px) 0 0;
+}
+
+.photo-thumb {
+    max-height: 180px;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
     transition: transform 0.2s ease;
 }
 
-.photo-card:hover img {
-    transform: scale(1.03);
+.photo-card:hover .photo-thumb {
+    transform: scale(1.05);
+}
+
+.lightbox-trigger {
+    display: block;
+    cursor: zoom-in;
 }
 </style>
+
+<script>
+document.querySelectorAll('.lightbox-trigger').forEach(function(el) {
+    el.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('lightboxImg').src = this.dataset.src;
+        var cap = this.dataset.caption;
+        var capEl = document.getElementById('lightboxCaption');
+        capEl.textContent = cap;
+        capEl.style.display = cap ? '' : 'none';
+        new bootstrap.Modal(document.getElementById('lightboxModal')).show();
+    });
+});
+</script>
 {% endblock %}
