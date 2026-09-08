@@ -239,6 +239,7 @@ class User(UserMixin, db.Model):
             'perfect_6pts': len([p for p in finished_predictions if p.points == 6]),
             'winner_plus_score_4pts': len([p for p in finished_predictions if p.points == 4]),
             'winner_only_2pts': len([p for p in finished_predictions if p.points == 2]),
+            'five_set_wrong_winner_3pts': len([p for p in finished_predictions if p.points == 3]),
             'partial_1pt': len([p for p in finished_predictions if p.points == 1]),
             'wrong_0pts': len([p for p in finished_predictions if p.points == 0]),
             'correct_predictions': len([p for p in finished_predictions if p.points >= 2]),
@@ -1218,7 +1219,10 @@ def calculate_points(prediction, game):
     elif winner_correct:
         return 2  # Just correct winner
     elif total_sets_correct:
-        return 1  # Wrong winner but correct total sets
+        # 5-set thriller bonus: predicted the full distance even if wrong winner
+        if game.team1_score + game.team2_score == 5:
+            return 3
+        return 1  # Wrong winner but correct total sets (non-5-set game)
     else:
         return 0  # Completely wrong
 
