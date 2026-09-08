@@ -90,10 +90,10 @@ class VolleyballResultFetcher:
         date_str = game_date.strftime('%Y-%m-%d')
 
         queries = [
-            f'{team1} vs {team2} CEV EuroVolley Women 2026 result',
-            f'{team1} {team2} EuroVolley Women 2026 volleyball score',
+            f'{team1} vs {team2} CEV EuroVolley Men 2026 result',
+            f'{team1} {team2} EuroVolley Men 2026 volleyball score',
             f'{team1} vs {team2} volleyball {date_str} result',
-            f'CEV EuroVolley Women 2026 {team1} {team2} score',
+            f'CEV EuroVolley Men 2026 {team1} {team2} score',
         ]
 
         return queries

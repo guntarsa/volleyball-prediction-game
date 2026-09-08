@@ -52,38 +52,38 @@ def to_riga_time(dt):
 
 app = Flask(__name__)
 
-# Team name to country code mapping for flags - EuroVolley Women 2026
+# Team name to country code mapping for flags - EuroVolley Men 2026
 TEAM_COUNTRY_MAPPING = {
-    # Pool A - Istanbul
+    # Pool A - Italy
+    'Italy': 'it',
+    'Czechia': 'cz',
+    'Czech Republic': 'cz',
+    'Greece': 'gr',
+    'Slovakia': 'sk',
+    'Slovenia': 'si',
+    'Sweden': 'se',
+    # Pool B - Bulgaria
+    'Bulgaria': 'bg',
+    'Israel': 'il',
+    'North Macedonia': 'mk',
+    'Poland': 'pl',
+    'Portugal': 'pt',
+    'Ukraine': 'ua',
+    # Pool C - Finland
+    'Finland': 'fi',
+    'Estonia': 'ee',
+    'Serbia': 'rs',
+    'Belgium': 'be',
+    'Netherlands': 'nl',
+    'Denmark': 'dk',
+    # Pool D - Romania
+    'France': 'fr',
+    'Germany': 'de',
+    'Latvia': 'lv',
+    'Romania': 'ro',
+    'Switzerland': 'ch',
     'Türkiye': 'tr',
     'Turkey': 'tr',
-    'Latvia': 'lv',
-    'Poland': 'pl',
-    'Germany': 'de',
-    'Slovenia': 'si',
-    'Hungary': 'hu',
-    # Pool B - Brno
-    'Czech Republic': 'cz',
-    'Czechia': 'cz',
-    'Austria': 'at',
-    'Serbia': 'rs',
-    'Ukraine': 'ua',
-    'Bulgaria': 'bg',
-    'Greece': 'gr',
-    # Pool C - Baku
-    'Azerbaijan': 'az',
-    'Portugal': 'pt',
-    'Netherlands': 'nl',
-    'Belgium': 'be',
-    'Romania': 'ro',
-    'Spain': 'es',
-    # Pool D - Gothenburg
-    'Sweden': 'se',
-    'Montenegro': 'me',
-    'Italy': 'it',
-    'France': 'fr',
-    'Slovakia': 'sk',
-    'Croatia': 'hr',
     # Extra mappings kept for historical data
     'Algeria': 'dz',
     'Argentina': 'ar',

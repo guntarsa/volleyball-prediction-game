@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Clear Tournament Data Script - EuroVolley Women 2026
+Clear Tournament Data Script - EuroVolley Men 2026
 
 This script clears all tournament-related data while preserving:
 - User accounts and logins
@@ -39,7 +39,7 @@ def get_riga_time():
 def clear_tournament_data():
     """Clear all tournament data while keeping users"""
     
-    print("🏐 EuroVolley Women 2026 - Tournament Data Reset")
+    print("🏐 EuroVolley Men 2026 - Tournament Data Reset")
     print("=" * 60)
 
     with app.app_context():
@@ -101,8 +101,8 @@ def clear_tournament_data():
             print("👥 All user accounts preserved")
             print("📈 Leaderboard structure maintained (scores will rebuild)")
             print()
-            print("🚀 Ready for EuroVolley Women 2026!")
-            print("   • Upload eurovolley_women_2026_pools.csv via Admin panel")
+            print("🚀 Ready for EuroVolley Men 2026!")
+            print("   • Upload eurovolley_men_2026_pools.csv via Admin panel")
             print("   • Set tournament prediction deadline")
             print("   • Users can start making predictions")
             

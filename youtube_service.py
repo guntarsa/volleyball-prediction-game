@@ -77,7 +77,7 @@ class YouTubeService:
             # Also search for shorts using the top query
             try:
                 shorts = self._search_videos(
-                    f'{team1} {team2} EuroVolley Women 2026 #shorts',
+                    f'{team1} {team2} EuroVolley Men 2026 #shorts',
                     max_results=5,
                     duration='short'
                 )
@@ -124,9 +124,9 @@ class YouTubeService:
     def _generate_search_queries(self, team1: str, team2: str, game_date: datetime) -> List[str]:
         """Generate multiple search query variations for volleyball highlights"""
         queries = [
-            f'{team1} vs {team2} CEV EuroVolley Women 2026 highlights',
-            f'{team1} {team2} EuroVolley Women 2026',
-            f'CEV EuroVolley Women 2026 {team1} {team2}',
+            f'{team1} vs {team2} CEV EuroVolley Men 2026 highlights',
+            f'{team1} {team2} EuroVolley Men 2026',
+            f'CEV EuroVolley Men 2026 {team1} {team2}',
         ]
 
         return queries
@@ -271,7 +271,7 @@ class YouTubeService:
                 relevance_score += 1
             if 'highlights' in title_lower:
                 relevance_score += 1
-            if 'women' in title_lower:
+            if 'men' in title_lower:
                 relevance_score += 1
 
             video['relevance_score'] = relevance_score
