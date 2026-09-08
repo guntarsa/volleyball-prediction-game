@@ -103,7 +103,61 @@
             </div>
 
             <div class="card-body">
+
+                {% if current_user.is_admin %}
+                <div class="mb-4 p-3 bg-light rounded border">
+                    <h6 class="mb-2"><i class="fas fa-camera me-1"></i> Add Photo (Admin)</h6>
+                    <form method="POST" action="{{ url_for('upload_highlight_photo', game_id=game_data.game.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+                        <div class="col-sm-5">
+                            <input type="file" name="photo" class="form-control form-control-sm" accept="image/jpeg,image/png,image/gif,image/webp" required>
+                        </div>
+                        <div class="col-sm-5">
+                            <input type="text" name="caption" class="form-control form-control-sm" placeholder="Caption (optional)" maxlength="500">
+                        </div>
+                        <div class="col-sm-2">
+                            <button type="submit" class="btn btn-sm btn-success w-100">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if game_data.photos %}
+                <h6 class="text-muted mb-3"><i class="fas fa-images me-1"></i> Photos</h6>
+                <div class="row mb-4">
+                    {% for photo in game_data.photos %}
+                    <div class="col-6 col-md-4 col-lg-3 mb-3">
+                        <div class="card h-100 shadow-sm photo-card">
+                            <a href="{{ photo.url }}" target="_blank">
+                                <img src="{{ photo.url }}"
+                                     class="card-img-top"
+                                     alt="{{ photo.caption or 'Match photo' }}"
+                                     style="height: 160px; object-fit: cover;">
+                            </a>
+                            {% if photo.caption %}
+                            <div class="card-body p-2">
+                                <small class="text-muted">{{ photo.caption }}</small>
+                            </div>
+                            {% endif %}
+                            {% if current_user.is_admin %}
+                            <div class="card-footer p-1 text-end">
+                                <form method="POST" action="{{ url_for('delete_highlight_photo', photo_id=photo.id) }}"
+                                      onsubmit="return confirm('Delete this photo?')">
+                                    <button type="submit" class="btn btn-danger btn-sm py-0 px-2">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {% if game_data.highlights %}
+                {% if game_data.photos %}<h6 class="text-muted mb-3"><i class="fab fa-youtube me-1 text-danger"></i> Videos</h6>{% endif %}
                     <div class="row">
                         {% for highlight in game_data.highlights %}
                         <div class="col-lg-6 col-xl-4 mb-4">
@@ -179,6 +233,7 @@
                         {% endfor %}
                     </div>
                 {% else %}
+                    {% if not game_data.photos %}
                     <div class="text-center py-5">
                         <i class="fas fa-search fa-3x text-muted mb-3"></i>
                         <h5 class="text-muted">No highlights found for this game yet</h5>
@@ -186,6 +241,7 @@
                             Highlights are automatically detected and added. Check back later!
                         </p>
                     </div>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -249,6 +305,14 @@
 .btn-danger:hover {
     transform: scale(1.1);
     transition: transform 0.2s ease;
+}
+
+.photo-card img {
+    transition: transform 0.2s ease;
+}
+
+.photo-card:hover img {
+    transform: scale(1.03);
 }
 </style>
 {% endblock %}

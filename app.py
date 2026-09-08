@@ -162,6 +162,9 @@ if database_url.startswith('postgresql://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['HIGHLIGHT_PHOTO_FOLDER'] = os.path.join('static', 'uploads', 'highlights')
+app.config['ALLOWED_PHOTO_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+app.config['MAX_PHOTO_SIZE'] = 10 * 1024 * 1024  # 10 MB
 app.config['WTF_CSRF_ENABLED'] = True
 
 db = SQLAlchemy(app)
@@ -559,6 +562,22 @@ class FeaturedVideo(db.Model):
                     parts.append(f"{seconds}s")
                 return " ".join(parts) if parts else "0s"
         return self.duration
+
+
+class GamePhoto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    caption = db.Column(db.String(500), nullable=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    game = db.relationship('Game', backref=db.backref('photos', lazy=True, cascade='all, delete-orphan'))
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+
+    @property
+    def url(self):
+        return f'/static/uploads/highlights/{self.filename}'
 
 
 # Performance Analysis Functions
@@ -1797,9 +1816,12 @@ def highlights():
                     logging.error(f"Error committing highlights: {e}")
                     db.session.rollback()
 
+            photos = GamePhoto.query.filter_by(game_id=game.id).order_by(GamePhoto.created_at.desc()).all()
+
             games_with_highlights.append({
                 'game': game,
-                'highlights': existing_highlights[:5]  # Limit to 5 highlights per game
+                'highlights': existing_highlights[:5],
+                'photos': photos
             })
 
         # Get featured videos from database (admin-managed)
@@ -1829,6 +1851,62 @@ def highlights():
         logging.error(f"Error loading highlights page: {e}")
         flash('Error loading highlights. Please try again later.', 'error')
         return redirect(url_for('index'))
+
+@app.route('/highlights/upload_photo/<int:game_id>', methods=['POST'])
+@login_required
+@admin_required
+def upload_highlight_photo(game_id):
+    game = Game.query.get_or_404(game_id)
+    photo_file = request.files.get('photo')
+    caption = request.form.get('caption', '').strip()
+
+    if not photo_file or photo_file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('highlights'))
+
+    ext = photo_file.filename.rsplit('.', 1)[-1].lower() if '.' in photo_file.filename else ''
+    if ext not in app.config['ALLOWED_PHOTO_EXTENSIONS']:
+        flash('Only JPG, PNG, GIF and WebP images are allowed.', 'error')
+        return redirect(url_for('highlights'))
+
+    photo_file.seek(0, 2)
+    if photo_file.tell() > app.config['MAX_PHOTO_SIZE']:
+        flash('Image must be under 10 MB.', 'error')
+        return redirect(url_for('highlights'))
+    photo_file.seek(0)
+
+    upload_dir = app.config['HIGHLIGHT_PHOTO_FOLDER']
+    os.makedirs(upload_dir, exist_ok=True)
+
+    import uuid
+    filename = f"{game_id}_{uuid.uuid4().hex}.{ext}"
+    photo_file.save(os.path.join(upload_dir, filename))
+
+    photo = GamePhoto(
+        game_id=game_id,
+        filename=filename,
+        caption=caption or None,
+        uploaded_by=current_user.id
+    )
+    db.session.add(photo)
+    db.session.commit()
+    flash('Photo uploaded successfully.', 'success')
+    return redirect(url_for('highlights'))
+
+
+@app.route('/highlights/delete_photo/<int:photo_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_highlight_photo(photo_id):
+    photo = GamePhoto.query.get_or_404(photo_id)
+    filepath = os.path.join(app.config['HIGHLIGHT_PHOTO_FOLDER'], photo.filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    db.session.delete(photo)
+    db.session.commit()
+    flash('Photo deleted.', 'success')
+    return redirect(url_for('highlights'))
+
 
 # Removed add_user route - users now register themselves
 
