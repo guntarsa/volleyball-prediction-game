@@ -78,7 +78,7 @@ Serbia,Turkey,2024-09-16,14:00,Quarter Final 3,2024-09-16,13:30</code></pre>
                 
                 <form method="POST" action="{{ url_for('set_tournament_config') }}">
                     <div class="mb-3">
-                        <label for="prediction_deadline" class="form-label">Tournament Prediction Deadline:</label>
+                        <label for="prediction_deadline" class="form-label">Medalist Prediction Deadline:</label>
                         <input type="datetime-local" name="prediction_deadline" id="prediction_deadline" 
                                class="form-control" required
                                value="{% if tournament_config %}{{ tournament_config.prediction_deadline.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
@@ -620,7 +620,7 @@ Dominican Republic,do
                     <i class="fas fa-users"></i> Expected: 24 teams for tournament<br>
                     <i class="fas fa-file-csv"></i> Format: team_name required, country_code optional<br>
                     <i class="fas fa-flag"></i> Country codes auto-detected if not provided<br>
-                    <i class="fas fa-trophy"></i> Used for tournament predictions
+                    <i class="fas fa-trophy"></i> Used for medalist predictions
                 </small>
             </div>
         </div>
@@ -1231,7 +1231,7 @@ Dominican Republic,do
                     <div class="mt-3">
                         <small class="text-muted">
                             <i class="fas fa-info-circle"></i>
-                            Note: Teams referenced in tournament predictions cannot be deleted.
+                            Note: Teams referenced in medalist predictions cannot be deleted.
                         </small>
                     </div>
                 </div>

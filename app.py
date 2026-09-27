@@ -2328,7 +2328,7 @@ def delete_tournament_team(team_id):
     ).count()
     
     if predictions_count > 0:
-        flash(f'Cannot delete team: {predictions_count} tournament predictions reference this team', 'error')
+        flash(f'Cannot delete team: {predictions_count} medalist predictions reference this team', 'error')
         return redirect(url_for('admin'))
     
     # Delete the team
@@ -2541,7 +2541,7 @@ def set_tournament_config():
         db.session.add(tournament_config)
     
     db.session.commit()
-    flash('Tournament prediction deadline set successfully!', 'success')
+    flash('Medalist prediction deadline set successfully!', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/tournament-results', methods=['POST'])
@@ -2618,9 +2618,9 @@ def tournament_predictions():
     # Get or create tournament config
     tournament_config = TournamentConfig.query.first()
     if not tournament_config:
-        flash('Tournament predictions are not yet available. Please contact admin.', 'warning')
+        flash('Medalist predictions are not yet available. Please contact admin.', 'warning')
         return redirect(url_for('index'))
-    
+
     # Get tournament teams (if available) or fallback to game teams
     tournament_teams = TournamentTeam.query.order_by(TournamentTeam.name).all()
     if tournament_teams:
@@ -2644,7 +2644,7 @@ def tournament_predictions():
     
     if request.method == 'POST':
         if not tournament_config.is_prediction_open():
-            flash('Tournament prediction deadline has passed.', 'error')
+            flash('Medalist prediction deadline has passed.', 'error')
             return redirect(url_for('tournament_predictions'))
         
         first_place = request.form.get('first_place')
@@ -2683,7 +2683,7 @@ def tournament_predictions():
             db.session.add(user_prediction)
         
         db.session.commit()
-        flash('Tournament prediction saved successfully!', 'success')
+        flash('Medalist prediction saved successfully!', 'success')
         return redirect(url_for('tournament_predictions'))
     
     return render_template('tournament_predictions.html', 
@@ -2697,12 +2697,12 @@ def all_tournament_predictions():
     # Get tournament config to check if predictions are closed
     tournament_config = TournamentConfig.query.first()
     if not tournament_config:
-        flash('Tournament predictions are not yet available. Please contact admin.', 'warning')
+        flash('Medalist predictions are not yet available. Please contact admin.', 'warning')
         return redirect(url_for('index'))
-    
+
     # Only show all predictions if deadline has passed
     if tournament_config.is_prediction_open():
-        flash('Tournament predictions are still open. All predictions will be visible after the deadline.', 'info')
+        flash('Medalist predictions are still open. All predictions will be visible after the deadline.', 'info')
         return redirect(url_for('tournament_predictions'))
     
     # Get all tournament predictions with user information, ordered by user name

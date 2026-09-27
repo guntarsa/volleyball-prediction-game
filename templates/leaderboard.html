@@ -50,7 +50,7 @@
                                 <th scope="col">Player</th>
                                 <th scope="col" class="text-center">Total Score</th>
                                 {% if tournament_results_available %}
-                                <th scope="col" class="text-center" title="Points earned from tournament (medalist) predictions">Tournament</th>
+                                <th scope="col" class="text-center" title="Points earned from medalist predictions">Medalist</th>
                                 {% endif %}
                                 <th scope="col" class="text-center" title="Actual predictions made by user (excludes default points)">Real Predictions</th>
                                 <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
@@ -147,7 +147,7 @@
                                                 <i class="fas fa-check-circle me-1"></i>{{ user.correct_predictions }}
                                             </small>
                                             {% if tournament_results_available %}
-                                            <small class="text-warning" title="Tournament (medalist) points">
+                                            <small class="text-warning" title="Medalist prediction points">
                                                 <i class="fas fa-trophy me-1"></i>{{ user.tournament_points }}
                                             </small>
                                             {% endif %}
@@ -234,7 +234,7 @@
             <div class="card-body">
                 <h5 class="card-title text-warning">
                     <i class="fas fa-trophy"></i>
-                    Best Tournament Predictor
+                    Best Medalist Predictor
                 </h5>
                 {% set best_tournament = users | selectattr('tournament_points', '>', 0) | sort(attribute='tournament_points', reverse=true) | first %}
                 <h3 class="text-warning">{{ best_tournament.tournament_points if best_tournament else 0 }}</h3>
