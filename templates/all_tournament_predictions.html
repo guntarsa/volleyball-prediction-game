@@ -150,14 +150,19 @@
                                 <td>
                                     <strong>{{ prediction.user.name }}</strong>
                                 </td>
+                                {% set actual_medalists = [tournament_config.first_place_result, tournament_config.second_place_result, tournament_config.third_place_result] %}
                                 <td class="text-center">
                                     <div class="prediction-team">
                                         {% if get_country_code(prediction.first_place) %}
                                             <span class="fi fi-{{ get_country_code(prediction.first_place) }} team-flag me-2"></span>
                                         {% endif %}
                                         {{ prediction.first_place }}
-                                        {% if stats.results_available and prediction.first_place == tournament_config.first_place_result %}
-                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% if stats.results_available %}
+                                            {% if prediction.first_place == tournament_config.first_place_result %}
+                                                <span class="badge bg-success ms-1" title="Exact position">✓</span>
+                                            {% elif prediction.first_place in actual_medalists %}
+                                                <span class="badge bg-warning text-dark ms-1" title="Medalist, wrong position">✓</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -167,8 +172,12 @@
                                             <span class="fi fi-{{ get_country_code(prediction.second_place) }} team-flag me-2"></span>
                                         {% endif %}
                                         {{ prediction.second_place }}
-                                        {% if stats.results_available and tournament_config.second_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
-                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% if stats.results_available %}
+                                            {% if prediction.second_place == tournament_config.second_place_result %}
+                                                <span class="badge bg-success ms-1" title="Exact position">✓</span>
+                                            {% elif prediction.second_place in actual_medalists %}
+                                                <span class="badge bg-warning text-dark ms-1" title="Medalist, wrong position">✓</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -178,8 +187,12 @@
                                             <span class="fi fi-{{ get_country_code(prediction.third_place) }} team-flag me-2"></span>
                                         {% endif %}
                                         {{ prediction.third_place }}
-                                        {% if stats.results_available and tournament_config.third_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
-                                            <span class="badge bg-success ms-1">✓</span>
+                                        {% if stats.results_available %}
+                                            {% if prediction.third_place == tournament_config.third_place_result %}
+                                                <span class="badge bg-success ms-1" title="Exact position">✓</span>
+                                            {% elif prediction.third_place in actual_medalists %}
+                                                <span class="badge bg-warning text-dark ms-1" title="Medalist, wrong position">✓</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -200,6 +213,7 @@
                 <!-- Mobile Card View -->
                 <div class="d-md-none">
                     {% for prediction in all_predictions %}
+                    {% set actual_medalists = [tournament_config.first_place_result, tournament_config.second_place_result, tournament_config.third_place_result] %}
                     <div class="card mb-3 prediction-participant-card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h6 class="mb-0 fw-bold">{{ prediction.user.name }}</h6>
@@ -217,8 +231,12 @@
                                                 <span class="fi fi-{{ get_country_code(prediction.first_place) }} team-flag d-block mb-1"></span>
                                             {% endif %}
                                             <small class="fw-bold">{{ prediction.first_place }}</small>
-                                            {% if stats.results_available and prediction.first_place == tournament_config.first_place_result %}
-                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% if stats.results_available %}
+                                                {% if prediction.first_place == tournament_config.first_place_result %}
+                                                    <div><span class="badge bg-success" title="Exact position">✓</span></div>
+                                                {% elif prediction.first_place in actual_medalists %}
+                                                    <div><span class="badge bg-warning text-dark border" title="Medalist, wrong position">✓</span></div>
+                                                {% endif %}
                                             {% endif %}
                                         </div>
                                     </div>
@@ -231,8 +249,12 @@
                                                 <span class="fi fi-{{ get_country_code(prediction.second_place) }} team-flag d-block mb-1"></span>
                                             {% endif %}
                                             <small class="fw-bold">{{ prediction.second_place }}</small>
-                                            {% if stats.results_available and tournament_config.second_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
-                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% if stats.results_available %}
+                                                {% if prediction.second_place == tournament_config.second_place_result %}
+                                                    <div><span class="badge bg-success" title="Exact position">✓</span></div>
+                                                {% elif prediction.second_place in actual_medalists %}
+                                                    <div><span class="badge bg-warning text-dark border" title="Medalist, wrong position">✓</span></div>
+                                                {% endif %}
                                             {% endif %}
                                         </div>
                                     </div>
@@ -245,8 +267,12 @@
                                                 <span class="fi fi-{{ get_country_code(prediction.third_place) }} team-flag d-block mb-1"></span>
                                             {% endif %}
                                             <small class="fw-bold">{{ prediction.third_place }}</small>
-                                            {% if stats.results_available and tournament_config.third_place_result in [prediction.first_place, prediction.second_place, prediction.third_place] %}
-                                                <div><span class="badge bg-success">✓</span></div>
+                                            {% if stats.results_available %}
+                                                {% if prediction.third_place == tournament_config.third_place_result %}
+                                                    <div><span class="badge bg-success" title="Exact position">✓</span></div>
+                                                {% elif prediction.third_place in actual_medalists %}
+                                                    <div><span class="badge bg-warning text-dark border" title="Medalist, wrong position">✓</span></div>
+                                                {% endif %}
                                             {% endif %}
                                         </div>
                                     </div>
