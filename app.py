@@ -273,10 +273,11 @@ class User(UserMixin, db.Model):
                    and p.team2_score is not None])
     
     def get_correct_predictions(self):
-        """Count only predictions with 2+ points (truly correct predictions)"""
-        return len([p for p in self.predictions 
-                   if p.points is not None 
-                   and p.points >= 2
+        """Count predictions where the winner was correctly picked (2, 4, or 6 points).
+        Excludes 1 and 3 point predictions which reward correct total sets on a wrong-winner call."""
+        return len([p for p in self.predictions
+                   if p.points is not None
+                   and p.points in (2, 4, 6)
                    and p.game.is_finished])
     
     def get_finished_predictions(self):
@@ -292,7 +293,7 @@ class User(UserMixin, db.Model):
         if not finished_predictions:
             return 0.0
         
-        correct_count = len([p for p in finished_predictions if p.points >= 2])
+        correct_count = len([p for p in finished_predictions if p.points in (2, 4, 6)])
         return round((correct_count / len(finished_predictions)) * 100, 1)
     
     def get_prediction_breakdown(self):
@@ -307,8 +308,8 @@ class User(UserMixin, db.Model):
             'five_set_wrong_winner_3pts': len([p for p in finished_predictions if p.points == 3]),
             'partial_1pt': len([p for p in finished_predictions if p.points == 1]),
             'wrong_0pts': len([p for p in finished_predictions if p.points == 0]),
-            'correct_predictions': len([p for p in finished_predictions if p.points >= 2]),
-            'accuracy': round((len([p for p in finished_predictions if p.points >= 2]) / max(len(finished_predictions), 1)) * 100, 1)
+            'correct_predictions': len([p for p in finished_predictions if p.points in (2, 4, 6)]),
+            'accuracy': round((len([p for p in finished_predictions if p.points in (2, 4, 6)]) / max(len(finished_predictions), 1)) * 100, 1)
         }
 
 class Game(db.Model):
@@ -683,11 +684,11 @@ def calculate_performance_hash(user_id):
         # Calculate metrics
         total_score = user.get_total_score()
         total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
-        correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
+        correct_predictions = len([p for p in user.predictions if p.points and p.points in (2, 4, 6) and not p.is_default_prediction()])
         accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
-        
+
         # Recent performance
-        recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
+        recent_correct = len([p for p in recent_predictions if p.points and p.points in (2, 4, 6)])
         recent_total = len(recent_predictions)
         recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
         recent_points = sum([p.points or 0 for p in recent_predictions])
@@ -755,7 +756,7 @@ def get_latest_results_summary(user_id):
             for game in recent_games:
                 prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
                 if prediction:
-                    correct = prediction.points and prediction.points >= 2
+                    correct = prediction.points and prediction.points in (2, 4, 6)
                     results.append({
                         'game': game,
                         'prediction': prediction,
@@ -790,7 +791,7 @@ def get_latest_results_summary(user_id):
                     return [{
                         'game': last_game,
                         'prediction': prediction,
-                        'correct': prediction.points and prediction.points >= 2,
+                        'correct': prediction.points and prediction.points in (2, 4, 6),
                         'points': prediction.points or 0,
                         'is_latest': True
                     }]
@@ -800,7 +801,7 @@ def get_latest_results_summary(user_id):
         for game in latest_games:
             prediction = Prediction.query.filter_by(user_id=user_id, game_id=game.id).first()
             if prediction:
-                correct = prediction.points and prediction.points >= 2
+                correct = prediction.points and prediction.points in (2, 4, 6)
                 results.append({
                     'game': game,
                     'prediction': prediction,
@@ -879,17 +880,17 @@ def analyze_user_performance(user_id):
     # Calculate metrics
     total_score = user.get_total_score()
     total_predictions = len([p for p in user.predictions if not p.is_default_prediction()])
-    correct_predictions = len([p for p in user.predictions if p.points and p.points >= 2 and not p.is_default_prediction()])
+    correct_predictions = len([p for p in user.predictions if p.points and p.points in (2, 4, 6) and not p.is_default_prediction()])
     accuracy = round((correct_predictions / total_predictions * 100) if total_predictions > 0 else 0)
-    
+
     # Recent performance (last 5 games)
     recent_predictions = db.session.query(Prediction).join(Game).filter(
         Prediction.user_id == user_id,
         Game.is_finished == True,
         Prediction.team1_score.isnot(None)  # Only real predictions
     ).order_by(Game.game_date.desc()).limit(5).all()
-    
-    recent_correct = len([p for p in recent_predictions if p.points and p.points >= 2])
+
+    recent_correct = len([p for p in recent_predictions if p.points and p.points in (2, 4, 6)])
     recent_total = len(recent_predictions)
     recent_accuracy = round((recent_correct / recent_total * 100) if recent_total > 0 else 0)
     
@@ -934,39 +935,39 @@ class AIMessageGenerator:
         # Fallback templates by category (20-30 words each)
         self.fallback_templates = {
             'champion': [
-                "🏆 Champion leading with {total_score} points! Your {accuracy}% accuracy dominates the competition. Outstanding work!",
-                "👑 Top of the leaderboard! {correct_predictions} correct predictions show your volleyball expertise. Keep winning!",
-                "🌟 Prediction champion! Your consistency at {accuracy}% accuracy keeps you ahead. Stay strong!"
+                "🏆 Champion leading with {total_score} points! {correct_predictions} correct winners dominate the competition. Outstanding work!",
+                "👑 Top of the leaderboard! {correct_predictions} correct winner picks show your volleyball expertise. Keep winning!",
+                "🌟 Prediction champion! Consistency with {correct_predictions} correct winners keeps you ahead. Stay strong!"
             ],
             'top_performer': [
-                "🥇 Rank #{rank} with {accuracy}% accuracy! Your top 3 position shows real prediction skills. Great job!",
-                "🚀 Top 3 performance with {total_score} points! Your dedication to accurate predictions is paying off beautifully.",
-                "⭐ Excellent #{rank} position! Your {correct_predictions} correct predictions keep you in contention. Amazing work!"
+                "🥇 Rank #{rank} with {correct_predictions} correct winners! Your top 3 position shows real prediction skills. Great job!",
+                "🚀 Top 3 performance with {total_score} points! Your {correct_predictions} correct winner calls are paying off beautifully.",
+                "⭐ Excellent #{rank} position! Your {correct_predictions} correct winners keep you in contention. Amazing work!"
             ],
             'accuracy_master': [
-                "🎯 Incredible {accuracy}% accuracy! Your precision with {correct_predictions} correct predictions is truly remarkable. Keep it up!",
-                "🔥 {accuracy}% success rate - you're on fire! Your prediction skills are top tier. Fantastic work!",
-                "💯 Amazing {accuracy}% accuracy! Your volleyball knowledge shines through every prediction. Well done!"
+                "🎯 Incredible {correct_predictions} correct winners! Your precision on {total_predictions} predictions is truly remarkable. Keep it up!",
+                "🔥 {correct_predictions} correct winner picks - you're on fire! Your prediction skills are top tier. Fantastic work!",
+                "💯 Amazing {correct_predictions} correct winners! Your volleyball knowledge shines through every prediction. Well done!"
             ],
             'solid_predictor': [
-                "👍 Solid {accuracy}% accuracy! Your {correct_predictions} correct predictions show consistent improvement. Keep building!",
-                "📈 {total_score} points and climbing! Your steady approach to predictions is working well. Great progress!",
-                "💪 Strong {accuracy}% accuracy! Your {correct_predictions} correct calls demonstrate good volleyball instincts. Keep going!"
+                "👍 Solid work with {correct_predictions} correct winners! Consistent improvement across your predictions. Keep building!",
+                "📈 {total_score} points and climbing! Your steady approach with {correct_predictions} correct winners is working well. Great progress!",
+                "💪 Strong {correct_predictions} correct winners! Your calls demonstrate good volleyball instincts. Keep going!"
             ],
             'improving': [
-                "📈 Love the upward trend! Recent {recent_accuracy}% vs {accuracy}% overall shows real improvement. Keep growing!",
-                "🌱 Great progress! Your recent predictions are much stronger. This improvement trend looks fantastic!",
-                "🔥 You're heating up! Recent form shows {recent_accuracy}% accuracy. This momentum is excellent!"
+                "📈 Love the upward trend! Recent form with {recent_correct} correct winners shows real improvement. Keep growing!",
+                "🌱 Great progress! Your recent winner picks are much stronger. This improvement trend looks fantastic!",
+                "🔥 You're heating up! Recent form: {recent_correct} correct winners in your last games. This momentum is excellent!"
             ],
             'struggling': [
                 "💪 Tough stretch, but your {total_predictions} predictions show dedication. Champions bounce back - keep pushing!",
-                "🌟 Every expert faces challenges! Your {correct_predictions} correct predictions prove you've got this. Stay confident!",
+                "🌟 Every expert faces challenges! Your {correct_predictions} correct winner picks prove you've got this. Stay confident!",
                 "🎯 Difficult period, but your commitment shines through. Trust your instincts and keep making predictions!"
             ],
             'average': [
-                "⚡ Solid position with {total_score} points! Your {accuracy}% accuracy has room to climb higher. Keep going!",
+                "⚡ Solid position with {total_score} points! Your {correct_predictions} correct winners have room to grow. Keep going!",
                 "🎲 {total_predictions} predictions show real commitment! Your volleyball knowledge can take you further up the rankings.",
-                "🌊 Steady progress with {accuracy}% accuracy! Every prediction brings you closer to the top. Keep predicting!"
+                "🌊 Steady progress with {correct_predictions} correct winners! Every prediction brings you closer to the top. Keep predicting!"
             ],
             'newcomer': [
                 "🎉 Welcome to predictions! Every expert started somewhere. Your volleyball journey begins with each new prediction!",
@@ -1103,8 +1104,8 @@ CURRENT SITUATION:
 - Player: {user.name}
 - Current Rank: #{analysis['rank']} out of {analysis['total_players']} players
 - Total Points: {analysis['total_score']}
-- Overall Accuracy: {analysis['accuracy']}% ({analysis['correct_predictions']} correct out of {analysis['total_predictions']} predictions)
-- Recent Form: {analysis['recent_accuracy']}% accuracy in last {analysis['recent_total']} games
+- Correct Winners: {analysis['correct_predictions']} out of {analysis['total_predictions']} predictions (only predictions where the winner was correctly picked count)
+- Recent Form: {analysis['recent_correct']} correct winners in last {analysis['recent_total']} games
 - Performance Category: {analysis['category']}
 
 SPECIFIC RECENT EVENTS & INSIGHTS:
@@ -1117,11 +1118,12 @@ TASK: Create a highly specific, informative message (20-30 words) that:
 3. Mentions actual TEAM NAMES, SCORES, or SPECIFIC ACHIEVEMENTS when available
 4. Shows you understand their exact situation
 5. Provides actionable insight or celebrates specific success
+6. Uses the "Correct Winners" count as the main performance KPI. Do NOT mention accuracy percentage or an "efficiency" stat.
 
 EXAMPLES OF GOOD SPECIFIC MESSAGES:
-- "🎯 Nailed Brazil vs Italy 3-1! Your recent 85% accuracy jumped you to #3. Keep targeting upsets!"
+- "🎯 Nailed Brazil vs Italy 3-1! 12 correct winners jumped you to #3. Keep targeting upsets!"
 - "📈 Climbed from #8 to #5 after Argentina prediction! Your 6-point Poland game was clutch. Momentum building!"
-- "🔥 Perfect Serbia 3-0 call earned 6pts! You're #2 with 89% accuracy. One win from the lead!"
+- "🔥 Perfect Serbia 3-0 call earned 6pts! You're #2 with 9 correct winners. One win from the lead!"
 
 EXAMPLES OF BAD GENERIC MESSAGES:
 - "Great job! Keep up the good work!" (too vague)
@@ -1191,6 +1193,7 @@ Generate the message now:"""
             'accuracy': analysis['accuracy'],
             'recent_accuracy': analysis['recent_accuracy'],
             'correct_predictions': analysis['correct_predictions'],
+            'recent_correct': analysis['recent_correct'],
             'total_predictions': analysis['total_predictions'],
             'recent_total': analysis['recent_total']
         }
@@ -1213,11 +1216,11 @@ Generate the message now:"""
         if latest_results and latest_results[0]['correct']:
             # Positive recent result templates
             specific_templates = {
-                'champion': "🏆 {latest_game} keeps you at #{rank}! {accuracy}% accuracy dominates with {total_score} points. Unstoppable!",
-                'top_performer': "🥇 {latest_game} for {latest_points}pts! Rank #{rank} with {accuracy}% accuracy. Top tier performance!",
-                'accuracy_master': "🎯 {latest_game} showcases your {accuracy}% precision! {correct_predictions} correct predictions prove your skills!",
-                'solid_predictor': "👍 {latest_game} adds to your {total_score} points! {accuracy}% accuracy shows consistent improvement!",
-                'improving': "📈 {latest_game} boosts recent {recent_accuracy}% vs {accuracy}% overall! Momentum building perfectly!",
+                'champion': "🏆 {latest_game} keeps you at #{rank}! {correct_predictions} correct winners dominate with {total_score} points. Unstoppable!",
+                'top_performer': "🥇 {latest_game} for {latest_points}pts! Rank #{rank} with {correct_predictions} correct winners. Top tier performance!",
+                'accuracy_master': "🎯 {latest_game} showcases your precision! {correct_predictions} correct winner picks prove your skills!",
+                'solid_predictor': "👍 {latest_game} adds to your {total_score} points! {correct_predictions} correct winners show consistent improvement!",
+                'improving': "📈 {latest_game} boosts your form: {recent_correct} correct winners recently! Momentum building perfectly!",
                 'struggling': "💪 {latest_game} for {latest_points}pts breaks the slide! Your dedication shows - keep pushing forward!",
                 'average': "⚡ {latest_game} earns {latest_points}pts! Rank #{rank} with room to climb higher. Keep predicting!",
                 'newcomer': "🎉 {latest_game} in early games! Great start building your prediction skills. Promising beginning!"
@@ -1635,7 +1638,7 @@ def leaderboard():
         }
         user_stats.append(stats)
 
-    user_stats.sort(key=lambda x: x['total_score'], reverse=True)
+    user_stats.sort(key=lambda x: (x['total_score'], x['correct_predictions']), reverse=True)
     return render_template('leaderboard.html', users=user_stats)
 
 @app.route('/race-chart')
@@ -2015,24 +2018,29 @@ def upload_featured_image():
         return redirect(request.referrer or url_for('admin'))
     photo_file.seek(0)
 
-    # For home placement delete old image first
-    if placement == 'home':
-        for old in FeaturedImage.query.filter_by(placement='home').all():
-            delete_image(old.filename)
-        FeaturedImage.query.filter_by(placement='home').delete()
+    try:
+        # For home placement delete old image first
+        if placement == 'home':
+            for old in FeaturedImage.query.filter_by(placement='home').all():
+                delete_image(old.filename)
+            FeaturedImage.query.filter_by(placement='home').delete()
+            db.session.commit()
+
+        stored = upload_image(photo_file, folder=f'volleyball/{placement}')
+
+        img = FeaturedImage(
+            filename=stored,
+            caption=caption or None,
+            placement=placement,
+            uploaded_by=current_user.id
+        )
+        db.session.add(img)
         db.session.commit()
-
-    stored = upload_image(photo_file, folder=f'volleyball/{placement}')
-
-    img = FeaturedImage(
-        filename=stored,
-        caption=caption or None,
-        placement=placement,
-        uploaded_by=current_user.id
-    )
-    db.session.add(img)
-    db.session.commit()
-    flash('Image uploaded successfully.', 'success')
+        flash('Image uploaded successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Image upload error: {e}")
+        flash(f'Upload failed: {e}', 'error')
     return redirect(request.referrer or url_for('admin'))
 
 
@@ -3505,15 +3513,20 @@ with app.app_context():
         # Check if we need to create the featured_video table
         if 'featured_video' not in existing_tables:
             logging.info("Creating FeaturedVideo table...")
-            # The table will be created automatically by db.create_all() above
-            # But we log it for transparency
             try:
-                # Verify the table was created
                 db.session.execute(db.text('SELECT 1 FROM featured_video LIMIT 1'))
                 logging.info("FeaturedVideo table created successfully")
             except Exception:
-                # Table doesn't exist yet, which is expected on first run
                 logging.info("FeaturedVideo table will be created by db.create_all()")
+
+        # Ensure game_photo and featured_image tables exist with all required columns
+        existing_tables = inspector.get_table_names()  # refresh after create_all
+        if 'game_photo' not in existing_tables:
+            logging.warning("game_photo table missing — forcing create_all()")
+            db.create_all()
+        if 'featured_image' not in existing_tables:
+            logging.warning("featured_image table missing — forcing create_all()")
+            db.create_all()
 
         # Initialize logging configuration
         try:

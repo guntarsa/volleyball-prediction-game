@@ -51,7 +51,7 @@
                                 <th scope="col" class="text-center">Total Score</th>
                                 <th scope="col" class="text-center" title="Actual predictions made by user (excludes default points)">Real Predictions</th>
                                 <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
-                                <th scope="col" class="text-center" title="Correct predictions (2+ points)">Correct</th>
+                                <th scope="col" class="text-center" title="Predictions where winner was correctly picked (2, 4, or 6 points)">Correct</th>
                                 <th scope="col" class="text-center" title="Accuracy based on finished games">Accuracy</th>
                             </tr>
                         </thead>
@@ -170,9 +170,10 @@
                     </div>
                     <div class="col-md-6">
                         <small class="text-muted">
-                            <strong>Correct:</strong> Predictions earning 2+ points (truly correct)<br>
+                            <strong>Correct:</strong> Winner correctly picked (2, 4, or 6 points). Excludes 1 and 3 point predictions where the winner was wrong.<br>
                             <strong>Accuracy:</strong> Based on real predictions only<br>
-                            <strong>Total Score:</strong> Includes both real predictions and default points
+                            <strong>Total Score:</strong> Includes both real predictions and default points<br>
+                            <strong>Tie-break:</strong> Players tied on Total Score are ranked by Correct count
                         </small>
                     </div>
                 </div>
@@ -200,11 +201,11 @@
             <div class="card-body">
                 <h5 class="card-title text-success">
                     <i class="fas fa-bullseye"></i>
-                    Best Accuracy
+                    Most Correct Winners
                 </h5>
-                {% set best_accuracy = users | selectattr('total_predictions', '>', 0) | sort(attribute='accuracy', reverse=true) | first %}
-                <h3 class="text-success">{{ best_accuracy.accuracy if best_accuracy else 0 }}%</h3>
-                <p class="card-text">{{ best_accuracy.name if best_accuracy else 'No predictions yet' }}</p>
+                {% set best_winners = users | selectattr('total_predictions', '>', 0) | sort(attribute='correct_predictions', reverse=true) | first %}
+                <h3 class="text-success">{{ best_winners.correct_predictions if best_winners else 0 }}</h3>
+                <p class="card-text">{{ best_winners.name if best_winners else 'No predictions yet' }}</p>
             </div>
         </div>
     </div>
