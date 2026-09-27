@@ -1624,9 +1624,12 @@ def predictions():
 @login_required
 def leaderboard():
     users = User.query.all()
+    tournament_config = TournamentConfig.query.first()
+    tournament_results_available = bool(tournament_config and tournament_config.are_results_available())
     user_stats = []
 
     for user in users:
+        tournament_points = user.tournament_prediction.points_earned if user.tournament_prediction else 0
         stats = {
             'id': user.id,
             'name': user.name,
@@ -1634,12 +1637,17 @@ def leaderboard():
             'all_predictions_filled': user.get_all_predictions_filled(),
             'total_predictions': user.get_total_predictions(),
             'correct_predictions': user.get_correct_predictions(),
-            'accuracy': user.get_accuracy_percentage()
+            'accuracy': user.get_accuracy_percentage(),
+            'tournament_points': tournament_points
         }
         user_stats.append(stats)
 
     user_stats.sort(key=lambda x: (x['total_score'], x['correct_predictions']), reverse=True)
-    return render_template('leaderboard.html', users=user_stats)
+    return render_template(
+        'leaderboard.html',
+        users=user_stats,
+        tournament_results_available=tournament_results_available
+    )
 
 @app.route('/race-chart')
 @login_required

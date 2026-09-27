@@ -49,6 +49,9 @@
                                 <th scope="col" class="text-center">Rank</th>
                                 <th scope="col">Player</th>
                                 <th scope="col" class="text-center">Total Score</th>
+                                {% if tournament_results_available %}
+                                <th scope="col" class="text-center" title="Points earned from tournament (medalist) predictions">Tournament</th>
+                                {% endif %}
                                 <th scope="col" class="text-center" title="Actual predictions made by user (excludes default points)">Real Predictions</th>
                                 <th scope="col" class="text-center" title="Predictions for finished games only">Finished Games</th>
                                 <th scope="col" class="text-center" title="Predictions where winner was correctly picked (2, 4, or 6 points)">Correct</th>
@@ -80,6 +83,15 @@
                                 <td class="text-center">
                                     <span class="badge bg-primary fs-6">{{ user.total_score }}</span>
                                 </td>
+                                {% if tournament_results_available %}
+                                <td class="text-center">
+                                    {% if user.tournament_points > 0 %}
+                                        <span class="badge bg-warning text-dark">{{ user.tournament_points }}</span>
+                                    {% else %}
+                                        <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
                                 <td class="text-center">
                                     <span class="text-muted">{{ user.all_predictions_filled }}</span>
                                 </td>
@@ -124,7 +136,7 @@
                                         <a href="{{ url_for('user_profile', user_id=user.id) }}" class="text-decoration-none">
                                             <h6 class="mb-1 fw-bold">{{ user.name }}</h6>
                                         </a>
-                                        <div class="d-flex gap-3">
+                                        <div class="d-flex gap-3 flex-wrap">
                                             <small class="text-muted" title="Real predictions made">
                                                 <i class="fas fa-user-edit me-1"></i>{{ user.all_predictions_filled }}
                                             </small>
@@ -134,6 +146,11 @@
                                             <small class="text-muted">
                                                 <i class="fas fa-check-circle me-1"></i>{{ user.correct_predictions }}
                                             </small>
+                                            {% if tournament_results_available %}
+                                            <small class="text-warning" title="Tournament (medalist) points">
+                                                <i class="fas fa-trophy me-1"></i>{{ user.tournament_points }}
+                                            </small>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -183,7 +200,8 @@
 </div>
 
 <div class="row mt-4">
-    <div class="col-md-4">
+    {% set summary_col = 'col-md-3' if tournament_results_available else 'col-md-4' %}
+    <div class="{{ summary_col }}">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-primary">
@@ -195,8 +213,8 @@
             </div>
         </div>
     </div>
-    
-    <div class="col-md-4">
+
+    <div class="{{ summary_col }}">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-success">
@@ -209,8 +227,24 @@
             </div>
         </div>
     </div>
-    
-    <div class="col-md-4">
+
+    {% if tournament_results_available %}
+    <div class="{{ summary_col }}">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="fas fa-trophy"></i>
+                    Best Tournament Predictor
+                </h5>
+                {% set best_tournament = users | selectattr('tournament_points', '>', 0) | sort(attribute='tournament_points', reverse=true) | first %}
+                <h3 class="text-warning">{{ best_tournament.tournament_points if best_tournament else 0 }}</h3>
+                <p class="card-text">{{ best_tournament.name if best_tournament else 'No tournament points yet' }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="{{ summary_col }}">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-info">
